@@ -6,6 +6,7 @@ import {
   createTelemetryClient,
   statsToTelemetryProperties
 } from "../../lib/telemetry";
+import { createFullFilePairPatch } from "../../lib/filePairPatch";
 import { loadDocuments, loadSettings, saveDocuments, saveSettings } from "../../lib/storage";
 import { DiffViewer } from "./DiffViewer";
 import { EditorPanel } from "./EditorPanel";
@@ -236,13 +237,10 @@ function createPatchFromDocument(document: DiffDocument): string {
     return document.source.patch;
   }
 
-  return [
-    `--- a/${document.source.oldFile.name}`,
-    `+++ b/${document.source.newFile.name}`,
-    "@@ -1,1 +1,1 @@",
-    ...document.source.oldFile.contents.split("\n").map((line) => `-${line}`),
-    ...document.source.newFile.contents.split("\n").map((line) => `+${line}`)
-  ].join("\n");
+  return createFullFilePairPatch({
+    oldFile: document.source.oldFile,
+    newFile: document.source.newFile
+  });
 }
 
 function slugify(value: string): string {

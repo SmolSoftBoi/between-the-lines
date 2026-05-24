@@ -1,4 +1,4 @@
-import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
+import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { DiffViewer } from "./features/diff-workbench/DiffViewer";
 import { createInitialDocument, defaultSettings } from "./features/diff-workbench/fixtures";
@@ -30,11 +30,10 @@ type IncomingDiffDocument = Omit<DiffDocument, "source" | "settings"> & {
 
 export function NativeRendererApp() {
   const [document, setDocument] = useState<DiffDocument>(() => createInitialDocument());
-  const renderStartRef = useRef(0);
 
   const renderDocument = useCallback((incomingDocument: DiffDocument) => {
     const nextDocument = normaliseDocument(incomingDocument);
-    renderStartRef.current = performance.now();
+    const renderStartedAt = performance.now();
     postNativeMessage({ type: "renderStarted", documentId: nextDocument.id });
     setDocument(nextDocument);
 
@@ -44,7 +43,7 @@ export function NativeRendererApp() {
           type: "renderCompleted",
           documentId: nextDocument.id,
           stats: getDocumentStats(nextDocument),
-          durationMs: Math.round(performance.now() - renderStartRef.current)
+          durationMs: Math.round(performance.now() - renderStartedAt)
         });
       });
     });
@@ -124,14 +123,16 @@ function normaliseFile(file: IncomingDiffFileVersion, prefix: string): DiffFileV
   };
 }
 
-const container = document.getElementById("native-root");
+if (import.meta.env.MODE !== "test") {
+  const container = document.getElementById("native-root");
 
-if (!container) {
-  throw new Error("Native renderer root element was not found.");
+  if (!container) {
+    throw new Error("Native renderer root element was not found.");
+  }
+
+  createRoot(container).render(
+    <StrictMode>
+      <NativeRendererApp />
+    </StrictMode>
+  );
 }
-
-createRoot(container).render(
-  <StrictMode>
-    <NativeRendererApp />
-  </StrictMode>
-);

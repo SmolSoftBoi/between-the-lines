@@ -8,7 +8,7 @@ export function loadDocuments(): DiffDocument[] {
 }
 
 export function saveDocuments(documents: DiffDocument[]): void {
-  window.localStorage.setItem(documentKey, JSON.stringify(documents.slice(0, 20)));
+  saveJson(documentKey, documents.slice(0, 20));
 }
 
 export function loadSettings(defaultSettings: ViewerSettings): ViewerSettings {
@@ -19,7 +19,7 @@ export function loadSettings(defaultSettings: ViewerSettings): ViewerSettings {
 }
 
 export function saveSettings(settings: ViewerSettings): void {
-  window.localStorage.setItem(settingsKey, JSON.stringify(settings));
+  saveJson(settingsKey, settings);
 }
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -28,5 +28,13 @@ function loadJson<T>(key: string, fallback: T): T {
     return value ? (JSON.parse(value) as T) : fallback;
   } catch {
     return fallback;
+  }
+}
+
+function saveJson(key: string, value: unknown): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    return;
   }
 }

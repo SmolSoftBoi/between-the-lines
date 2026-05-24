@@ -22,6 +22,10 @@ export interface NativeBridgeHandlers {
 
 export function installNativeBridge(handlers: NativeBridgeHandlers): () => void {
   const listener = (event: MessageEvent<NativeRendererMessage>) => {
+    if (event.source !== window || !isAllowedBridgeOrigin(event.origin)) {
+      return;
+    }
+
     const message = event.data;
 
     if (!message || typeof message !== "object" || !("type" in message)) {
@@ -45,6 +49,14 @@ export function installNativeBridge(handlers: NativeBridgeHandlers): () => void 
 
   window.addEventListener("message", listener);
   return () => window.removeEventListener("message", listener);
+}
+
+function isAllowedBridgeOrigin(origin: string): boolean {
+  if (window.location.protocol === "file:") {
+    return origin === "null" || origin === "file://";
+  }
+
+  return origin === window.location.origin;
 }
 
 export function postNativeMessage(message: NativeRendererMessage): void {

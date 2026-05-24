@@ -129,33 +129,8 @@ private final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScript
             return
         }
 
-        guard
-            let body = message.body as? [String: Any],
-            let type = body["type"] as? String
-        else {
-            telemetry.track(TelemetryEvent(name: .settingsChanged, properties: ["source": "web_renderer"]))
-            return
-        }
-
-        switch type {
-        case "renderStarted":
-            telemetry.track(TelemetryEvent(name: .renderStarted, properties: ["source": "web_renderer"]))
-        case "renderCompleted":
-            telemetry.track(
-                TelemetryEvent(
-                    name: .renderCompleted,
-                    properties: telemetryProperties(from: body)
-                )
-            )
-        case "renderFailed":
-            telemetry.track(TelemetryEvent(name: .renderFailed, properties: ["reason": "web_renderer_failed"]))
-        case "updateSettings":
-            telemetry.track(TelemetryEvent(name: .settingsChanged, properties: ["source": "web_renderer"]))
-        case "exportRequested":
-            telemetry.track(TelemetryEvent(name: .exportRequested, properties: ["source": "web_renderer"]))
-        default:
-            telemetry.track(TelemetryEvent(name: .settingsChanged, properties: ["source": "web_renderer"]))
-        }
+        let bridgeEvent = classifyDiffBridgeMessageBody(message.body)
+        telemetry.track(TelemetryEvent(name: bridgeEvent.name, properties: bridgeEvent.properties))
     }
 
     private func encode(_ document: DiffDocument) -> String? {
@@ -207,37 +182,100 @@ private final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScript
         return nil
     }
 
-    private func telemetryProperties(from body: [String: Any]) -> [String: String] {
-        var properties: [String: String] = ["source": "web_renderer"]
+}
 
-        if let durationMs = body["durationMs"] as? Double {
-            properties["duration_ms"] = String(Int(durationMs.rounded()))
-        } else if let durationMs = body["durationMs"] as? Int {
-            properties["duration_ms"] = String(durationMs)
-        }
+struct DiffBridgeTelemetryEvent: Equatable {
+    let name: TelemetryEventName
+    let properties: [String: String]
 
-        guard let stats = body["stats"] as? [String: Any] else {
-            return properties
-        }
+    init(name: TelemetryEventName, properties: [String: String]) {
+        self.name = name
+        self.properties = TelemetryEvent.sanitizedProperties(properties)
+    }
+}
 
-        properties["additions"] = stringValue(stats["additions"])
-        properties["deletions"] = stringValue(stats["deletions"])
-        properties["files"] = stringValue(stats["files"])
-        properties["size_bucket"] = stats["sizeBucket"] as? String
-
-        return properties.compactMapValues { $0 }
+func classifyDiffBridgeMessageBody(_ messageBody: Any) -> DiffBridgeTelemetryEvent {
+    guard
+        let body = messageBody as? [String: Any],
+        let type = body["type"] as? String
+    else {
+        return DiffBridgeTelemetryEvent(
+            name: .renderFailed,
+            properties: ["reason": "invalid_bridge_message"]
+        )
     }
 
-    private func stringValue(_ value: Any?) -> String? {
-        switch value {
-        case let value as Int:
-            return String(value)
-        case let value as Double:
-            return String(Int(value.rounded()))
-        case let value as String:
-            return value
-        default:
+    switch type {
+    case "renderStarted":
+        return DiffBridgeTelemetryEvent(
+            name: .renderStarted,
+            properties: ["source": "web_renderer"]
+        )
+    case "renderCompleted":
+        return DiffBridgeTelemetryEvent(
+            name: .renderCompleted,
+            properties: telemetryProperties(from: body)
+        )
+    case "renderFailed":
+        return DiffBridgeTelemetryEvent(
+            name: .renderFailed,
+            properties: ["reason": "web_renderer_failed"]
+        )
+    case "updateSettings":
+        return DiffBridgeTelemetryEvent(
+            name: .settingsChanged,
+            properties: settingsProperties(from: body)
+        )
+    case "exportRequested":
+        return DiffBridgeTelemetryEvent(
+            name: .exportRequested,
+            properties: ["source": "web_renderer"]
+        )
+    default:
+        return DiffBridgeTelemetryEvent(
+            name: .renderFailed,
+            properties: ["reason": "unknown_bridge_message"]
+        )
+    }
+}
+
+private func telemetryProperties(from body: [String: Any]) -> [String: String] {
+    var properties: [String: String] = ["source": "web_renderer"]
+
+    properties["duration_ms"] = integerString(from: body["durationMs"])
+
+    guard let stats = body["stats"] as? [String: Any] else {
+        return properties
+    }
+
+    properties["additions"] = integerString(from: stats["additions"])
+    properties["deletions"] = integerString(from: stats["deletions"])
+    properties["files"] = integerString(from: stats["files"])
+    properties["size_bucket"] = stats["sizeBucket"] as? String
+
+    return properties.compactMapValues { $0 }
+}
+
+private func settingsProperties(from body: [String: Any]) -> [String: String] {
+    var properties: [String: String] = ["source": "web_renderer"]
+    properties["setting"] = body["setting"] as? String
+    return properties
+}
+
+private func integerString(from value: Any?) -> String? {
+    switch value {
+    case let value as Int where value >= 0:
+        return String(value)
+    case let value as Double where value.isFinite && value >= 0:
+        let roundedValue = value.rounded()
+        guard roundedValue <= Double(Int.max) else {
             return nil
         }
+
+        return String(Int(roundedValue))
+    case let value as String:
+        return value
+    default:
+        return nil
     }
 }

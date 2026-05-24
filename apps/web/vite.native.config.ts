@@ -1,4 +1,6 @@
 import react from "@vitejs/plugin-react";
+// @ts-expect-error -- Vite runs this config in Node, but this workspace does not ship Node ambient types.
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -10,7 +12,7 @@ export default defineConfig({
     outDir: "dist-native",
     emptyOutDir: true,
     rollupOptions: {
-      input: new URL("native.html", import.meta.url).pathname
+      input: fileURLToPath(new URL("native.html", import.meta.url))
     }
   }
 });

@@ -26,7 +26,7 @@ Start with this small allow-list:
 
 | Property | Type | Example | Notes |
 | --- | --- | --- | --- |
-| `platform` | string | `web` | Use `web`, `ios`, or `macos`. |
+| `platform` | string | `web` | Use `web`, `iOS`, or `macOS`. |
 | `duration_bucket` | string | `under_500ms` | Prefer coarse timing buckets. |
 | `result` | string | `success` | Prefer enums such as `success`, `failure`, or `cancelled`. |
 | `error_code` | string | `network_timeout` | Use safe internal codes, not raw exception messages. |

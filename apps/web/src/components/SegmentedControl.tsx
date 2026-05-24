@@ -23,6 +23,7 @@ export function SegmentedControl<TValue extends string>({
       {options.map((option) => (
         <button
           className="segmented-control__button"
+          aria-pressed={option.value === value}
           data-active={option.value === value}
           key={option.value}
           type="button"

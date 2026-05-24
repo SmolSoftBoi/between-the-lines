@@ -8,35 +8,72 @@ public struct TelemetryEvent: Equatable, Sendable {
 
     public init(name: TelemetryEventName, properties: [String: String] = [:], date: Date = Date()) {
         self.name = name
-        self.properties = TelemetryEvent.sanitized(properties)
+        self.properties = TelemetryEvent.sanitizedProperties(properties)
         self.date = date
     }
 
-    private static func sanitized(_ properties: [String: String]) -> [String: String] {
-        properties.filter { key, _ in
-            !blockedPropertyKeys.contains(key.lowercased())
+    static func sanitizedProperties(_ properties: [String: String]) -> [String: String] {
+        var sanitizedProperties: [String: String] = [:]
+
+        for (key, value) in properties {
+            guard isAllowedMetadataValue(key: key, value: value) else {
+                continue
+            }
+
+            sanitizedProperties[key] = value
+        }
+
+        return sanitizedProperties
+    }
+
+    private static func isAllowedMetadataValue(key: String, value: String) -> Bool {
+        switch key {
+        case "additions", "deletions", "files", "duration_ms":
+            return isIntegerString(value)
+        case "size_bucket":
+            return allowedSizeBuckets.contains(value)
+        case "source":
+            return value == "web_renderer"
+        case "reason":
+            return allowedReasons.contains(value)
+        case "setting":
+            return allowedSettings.contains(value)
+        default:
+            return false
         }
     }
-}
 
-private let blockedPropertyKeys: Set<String> = [
-    "content",
-    "contents",
-    "patch",
-    "path",
-    "file",
-    "file_name",
-    "filename",
-    "file_path",
-    "repo",
-    "repository",
-    "repository_url",
-    "note",
-    "comment",
-    "token",
-    "secret",
-    "title",
-]
+    private static func isIntegerString(_ value: String) -> Bool {
+        guard !value.isEmpty else {
+            return false
+        }
+
+        return value.unicodeScalars.allSatisfy { scalar in
+            scalar.value >= 48 && scalar.value <= 57
+        }
+    }
+
+    private static let allowedSizeBuckets: Set<String> = [
+        "empty",
+        "small",
+        "medium",
+        "large",
+        "huge",
+    ]
+
+    private static let allowedReasons: Set<String> = [
+        "encode_failed",
+        "web_renderer_failed",
+        "post_message_failed",
+        "invalid_bridge_message",
+        "unknown_bridge_message",
+    ]
+
+    private static let allowedSettings: Set<String> = [
+        "diff_style",
+        "line_numbers",
+    ]
+}
 
 public enum TelemetryEventName: String, Sendable {
     case appOpened = "app_opened"

@@ -149,8 +149,9 @@ function AnnotationForm({
     const note = String(formData.get("note") ?? "").trim();
     const lineNumber = Number(formData.get("lineNumber") ?? "1");
     const side = formData.get("side") === "deletions" ? "deletions" : "additions";
+    const hasValidLineNumber = Number.isInteger(lineNumber) && lineNumber >= 1;
 
-    if (!note || Number.isNaN(lineNumber) || lineNumber < 1) {
+    if (!note || !hasValidLineNumber) {
       return;
     }
 
@@ -167,8 +168,9 @@ function AnnotationForm({
   return (
     <form
       className="annotation-form"
-      action={(formData) => {
-        addAnnotation(formData);
+      onSubmit={(event) => {
+        event.preventDefault();
+        addAnnotation(new FormData(event.currentTarget));
       }}
     >
       <div className="annotation-form__row">
@@ -181,7 +183,7 @@ function AnnotationForm({
         </label>
         <label>
           <span>Line</span>
-          <input name="lineNumber" min="1" type="number" defaultValue="1" />
+          <input name="lineNumber" min="1" step="1" type="number" defaultValue="1" />
         </label>
       </div>
       <label>

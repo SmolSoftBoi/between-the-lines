@@ -1,6 +1,6 @@
 import type { DiffStats, TextSizeBucket } from "../features/diff-workbench/types";
 
-export type TelemetryPlatform = "web" | "ios" | "macos";
+export type TelemetryPlatform = "web" | "iOS" | "macOS";
 
 export type TelemetryProperty =
   | string
@@ -35,26 +35,17 @@ export interface TelemetryClientOptions {
   appVersion: string;
 }
 
-const sensitiveKeys = new Set([
-  "content",
-  "contents",
-  "patch",
-  "path",
-  "file",
-  "fileName",
-  "filename",
-  "file_name",
-  "filePath",
-  "file_path",
-  "repo",
-  "repository",
-  "repositoryUrl",
-  "repository_url",
-  "token",
-  "secret",
-  "note",
-  "comment",
-  "email"
+const allowedTelemetryPropertyKeys = new Set([
+  "telemetryOptIn",
+  "additions",
+  "deletions",
+  "files",
+  "sizeBucket",
+  "durationBucket",
+  "changedSettings",
+  "side",
+  "lineBucket",
+  "format"
 ]);
 
 export function createTelemetryClient(options: TelemetryClientOptions) {
@@ -76,21 +67,24 @@ export function createTelemetryClient(options: TelemetryClientOptions) {
 
       const body = JSON.stringify(event);
 
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(options.endpoint, new Blob([body], { type: "application/json" }));
+      if (trySendBeacon(options.endpoint, body)) {
         return;
       }
 
-      void fetch(options.endpoint, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
-        body,
-        keepalive: true
-      }).catch(() => {
-        // Telemetry is best effort and must never affect local diff work.
-      });
+      try {
+        void fetch(options.endpoint, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json"
+          },
+          body,
+          keepalive: true
+        }).catch(() => {
+          // Telemetry is best effort and must never affect local diff work.
+        });
+      } catch {
+        return;
+      }
     }
   };
 }
@@ -126,7 +120,7 @@ export function sanitizeTelemetryProperties(
 ): Record<string, TelemetryProperty> {
   return Object.entries(properties).reduce<Record<string, TelemetryProperty>>(
     (safeProperties, [key, value]) => {
-      if (sensitiveKeys.has(key)) {
+      if (!allowedTelemetryPropertyKeys.has(key)) {
         return safeProperties;
       }
 
@@ -135,4 +129,18 @@ export function sanitizeTelemetryProperties(
     },
     {}
   );
+}
+
+function trySendBeacon(endpoint: string, body: string): boolean {
+  try {
+    const sendBeacon = navigator.sendBeacon;
+
+    if (!sendBeacon) {
+      return false;
+    }
+
+    return sendBeacon.call(navigator, endpoint, new Blob([body], { type: "application/json" })) === true;
+  } catch {
+    return false;
+  }
 }
