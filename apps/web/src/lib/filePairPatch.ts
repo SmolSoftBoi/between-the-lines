@@ -11,10 +11,12 @@ interface FilePairPatchInput {
 export function createFullFilePairPatch({ oldFile, newFile }: FilePairPatchInput): string {
   const oldLines = getPatchLines(oldFile.contents);
   const newLines = getPatchLines(newFile.contents);
+  const safeOldName = sanitizePatchFileName(oldFile.name);
+  const safeNewName = sanitizePatchFileName(newFile.name);
 
   return [
-    `--- a/${oldFile.name}`,
-    `+++ b/${newFile.name}`,
+    `--- a/${safeOldName}`,
+    `+++ b/${safeNewName}`,
     createHunkHeader(oldLines.length, newLines.length),
     ...oldLines.map((line) => `-${line}`),
     ...newLines.map((line) => `+${line}`)
@@ -41,4 +43,8 @@ function getPatchLines(contents: string): string[] {
   }
 
   return lines;
+}
+
+function sanitizePatchFileName(name: string): string {
+  return name.replace(/[\r\n]/g, "_");
 }

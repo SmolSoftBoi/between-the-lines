@@ -24,6 +24,86 @@ describe("installNativeBridge", () => {
     uninstall();
   });
 
+  it("rejects renderDiff messages without a valid document", () => {
+    const handlers = createHandlers();
+    const uninstall = installNativeBridge(handlers);
+
+    dispatchBridgeMessage({
+      type: "renderDiff",
+      document: {
+        id: "document-1",
+        source: {
+          kind: "patch",
+          patch: "+safe"
+        }
+      }
+    });
+
+    expect(handlers.onRenderDiff).not.toHaveBeenCalled();
+    uninstall();
+  });
+
+  it("passes only recognised and correctly typed updateSettings values", () => {
+    const handlers = createHandlers();
+    const uninstall = installNativeBridge(handlers);
+
+    dispatchBridgeMessage({
+      type: "updateSettings",
+      settings: {
+        diffStyle: "unified",
+        themeType: "dark",
+        lineDiffType: "char",
+        lineNumbers: false,
+        collapsedContextThreshold: 4,
+        telemetryOptIn: true,
+        overflow: "sideways",
+        patch: "+secret"
+      }
+    });
+
+    expect(handlers.onUpdateSettings).toHaveBeenCalledWith({
+      diffStyle: "unified",
+      themeType: "dark",
+      lineDiffType: "char",
+      lineNumbers: false,
+      collapsedContextThreshold: 4,
+      telemetryOptIn: true
+    });
+    uninstall();
+  });
+
+  it("rejects updateSettings messages without recognised valid settings", () => {
+    const handlers = createHandlers();
+    const uninstall = installNativeBridge(handlers);
+
+    dispatchBridgeMessage({
+      type: "updateSettings",
+      settings: {
+        diffStyle: "side-by-side",
+        themeType: "midnight",
+        lineDiffType: "token",
+        lineNumbers: "yes",
+        collapsedContextThreshold: Number.NaN
+      }
+    });
+
+    expect(handlers.onUpdateSettings).not.toHaveBeenCalled();
+    uninstall();
+  });
+
+  it("rejects exportRequested messages without a valid format", () => {
+    const handlers = createHandlers();
+    const uninstall = installNativeBridge(handlers);
+
+    dispatchBridgeMessage({
+      type: "exportRequested",
+      format: "zip"
+    });
+
+    expect(handlers.onExportRequested).not.toHaveBeenCalled();
+    uninstall();
+  });
+
   it("rejects same-window wrong-origin messages before reading data", () => {
     const handlers = createHandlers();
     const uninstall = installNativeBridge(handlers);
@@ -97,7 +177,7 @@ function createHandlers(): NativeBridgeHandlers {
 }
 
 function dispatchBridgeMessage(
-  message: NativeRendererMessage,
+  message: unknown,
   options: {
     origin?: string;
     source?: MessageEventSource | null;

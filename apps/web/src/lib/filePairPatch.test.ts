@@ -75,4 +75,27 @@ describe("createFullFilePairPatch", () => {
       ["--- a/newline.txt", "+++ b/newline.txt", "@@ -1,1 +1,1 @@", "-before", "+after"].join("\n")
     );
   });
+
+  it("sanitises line breaks in file names before writing patch headers", () => {
+    expect(
+      createFullFilePairPatch({
+        oldFile: {
+          name: "before\rsecret.txt",
+          contents: "old"
+        },
+        newFile: {
+          name: "after\nsecret.txt",
+          contents: "new"
+        }
+      })
+    ).toBe(
+      [
+        "--- a/before_secret.txt",
+        "+++ b/after_secret.txt",
+        "@@ -1,1 +1,1 @@",
+        "-old",
+        "+new"
+      ].join("\n")
+    );
+  });
 });

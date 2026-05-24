@@ -54,6 +54,54 @@ final class DiffBridgeMessageTests: XCTestCase {
         )
     }
 
+    func testRenderCompletedAcceptsTrimmedNumericStringMetadata() {
+        let event = classifyDiffBridgeMessageBody([
+            "type": "renderCompleted",
+            "durationMs": " 42 ",
+            "stats": [
+                "additions": "7",
+                "deletions": " 0 ",
+                "files": "001",
+                "sizeBucket": "medium",
+            ],
+        ])
+
+        XCTAssertEqual(event.name, .renderCompleted)
+        XCTAssertEqual(
+            event.properties,
+            [
+                "additions": "7",
+                "deletions": "0",
+                "duration_ms": "42",
+                "files": "001",
+                "size_bucket": "medium",
+                "source": "web_renderer",
+            ]
+        )
+    }
+
+    func testRenderCompletedDropsInvalidNumericStringMetadata() {
+        let event = classifyDiffBridgeMessageBody([
+            "type": "renderCompleted",
+            "durationMs": "",
+            "stats": [
+                "additions": "12ms",
+                "deletions": "12.5",
+                "files": "-1",
+                "sizeBucket": "small",
+            ],
+        ])
+
+        XCTAssertEqual(event.name, .renderCompleted)
+        XCTAssertEqual(
+            event.properties,
+            [
+                "size_bucket": "small",
+                "source": "web_renderer",
+            ]
+        )
+    }
+
     func testUpdateSettingsClassifiesOnlySafeSettingMetadata() {
         let event = classifyDiffBridgeMessageBody([
             "type": "updateSettings",

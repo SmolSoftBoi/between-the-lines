@@ -274,8 +274,17 @@ private func integerString(from value: Any?) -> String? {
 
         return String(Int(roundedValue))
     case let value as String:
-        return value
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty, trimmedValue.unicodeScalars.allSatisfy(isASCIIDigit) else {
+            return nil
+        }
+
+        return trimmedValue
     default:
         return nil
     }
+}
+
+private func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
+    scalar.value >= 48 && scalar.value <= 57
 }
