@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  docs-and-config:
+    name: Docs and configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate privacy-first telemetry defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f .env.example
+          grep -qx 'TELEMETRY_ENABLED=false' .env.example
+          grep -qx 'TELEMETRY_SAMPLE_RATE=0' .env.example
+          grep -qx 'TELEMETRY_ALLOW_DEBUG_LOGS=false' .env.example
+          grep -qx 'VITE_TELEMETRY_ENABLED=false' .env.example
+          grep -qx 'TELEMETRY_HASH_SALT=' .env.example
+
+      - name: Validate deployment and telemetry docs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f docs/deployment.md
+          test -f docs/telemetry.md
+          test -f docs/telemetry/schema.md
+
+          grep -qi 'privacy-first' docs/telemetry.md
+          grep -qi 'personally identifiable information' docs/telemetry/schema.md
+          grep -qi 'rollback' docs/deployment.md
+
+  app-quality-gates:
+    name: App quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        id: install
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f package-lock.json ]]; then
+            echo "::notice::Skipping app quality gates until package-lock.json exists."
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          npm ci
+          echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+
+      - name: Lint
+        if: steps.install.outputs.has_lockfile == 'true'
+        run: npm run lint
+
+      - name: Typecheck
+        if: steps.install.outputs.has_lockfile == 'true'
+        run: npm run typecheck
+
+      - name: Test
+        if: steps.install.outputs.has_lockfile == 'true'
+        run: npm run test
+
+      - name: Build
+        if: steps.install.outputs.has_lockfile == 'true'
+        run: npm run build
+
+      - name: Build native renderer
+        if: steps.install.outputs.has_lockfile == 'true'
+        run: npm run build:native-renderer
+
+  apple-package:
+    name: Apple package
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Test Swift package
+        run: swift test --package-path apps/apple

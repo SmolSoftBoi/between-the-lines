@@ -1,0 +1,21 @@
+{
+  "name": "between-the-lines",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm --workspace apps/web run dev",
+    "lint": "npm --workspace apps/web run lint",
+    "typecheck": "npm --workspace apps/web run typecheck",
+    "test": "npm --workspace apps/web run test",
+    "build": "npm --workspace apps/web run build",
+    "build:native-renderer": "npm --workspace apps/web run build:native-renderer",
+    "preview": "npm --workspace apps/web run preview"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

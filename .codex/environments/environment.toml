@@ -1,0 +1,3 @@
+[actions.Run]
+command = "./script/build_and_run.sh --run"
+description = "Build and launch the macOS preview app."
