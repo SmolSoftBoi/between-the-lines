@@ -105,7 +105,7 @@ final class DiffBridgeMessageTests: XCTestCase {
     func testUpdateSettingsClassifiesOnlySafeSettingMetadata() {
         let event = classifyDiffBridgeMessageBody([
             "type": "updateSettings",
-            "setting": "line_numbers",
+            "setting": "overflow",
             "path": "/tmp/private.patch",
         ])
 
@@ -113,9 +113,20 @@ final class DiffBridgeMessageTests: XCTestCase {
         XCTAssertEqual(
             event.properties,
             [
-                "setting": "line_numbers",
+                "setting": "overflow",
                 "source": "web_renderer",
             ]
         )
+    }
+
+    func testRenderDiffPostMessageScriptEscapesJavaScriptLineSeparators() {
+        let script = makeRenderDiffPostMessageScript(
+            documentJSON: "{\"title\":\"Line separator\u{2028}Paragraph separator\u{2029}\"}"
+        )
+
+        XCTAssertFalse(script.contains("\u{2028}"))
+        XCTAssertFalse(script.contains("\u{2029}"))
+        XCTAssertTrue(script.contains(#"\u2028"#))
+        XCTAssertTrue(script.contains(#"\u2029"#))
     }
 }

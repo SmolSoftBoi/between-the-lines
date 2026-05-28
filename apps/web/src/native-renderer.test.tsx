@@ -89,6 +89,32 @@ describe("NativeRendererApp", () => {
       })
     ]);
   });
+
+  it("preserves the changed setting name in native telemetry messages", async () => {
+    render(<NativeRendererApp />);
+
+    await waitFor(() => expect(nativeBridgeMock.handlers).toBeDefined());
+
+    const handlers = nativeBridgeMock.handlers;
+
+    if (!handlers) {
+      throw new Error("Expected native bridge handlers to be installed.");
+    }
+
+    act(() => {
+      handlers.onUpdateSettings({ diffStyle: "unified" });
+    });
+
+    expect(nativeBridgeMock.postNativeMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "updateSettings",
+        setting: "diff_style",
+        settings: expect.objectContaining({
+          diffStyle: "unified"
+        })
+      })
+    );
+  });
 });
 
 function flushQueuedAnimationFrames(): void {

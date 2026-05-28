@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { exportDocument } from "../../lib/exportDocument";
 import { getDocumentStats } from "../../lib/diffStats";
 import { installNativeBridge, postNativeMessage } from "../../lib/nativeBridge";
 import {
   createTelemetryClient,
+  getTelemetryEnvironment,
+  getTelemetrySettingName,
   statsToTelemetryProperties
 } from "../../lib/telemetry";
 import { createFullFilePairPatch } from "../../lib/filePairPatch";
@@ -17,6 +19,10 @@ import type { DiffDocument, DiffSource, ReviewAnnotation, ViewerSettings } from 
 
 const telemetryEndpoint = import.meta.env.VITE_TELEMETRY_ENDPOINT as string | undefined;
 const telemetryEnabled = import.meta.env.VITE_TELEMETRY_ENABLED === "true";
+const telemetryEnvironment = getTelemetryEnvironment(
+  (import.meta.env.VITE_APP_ENV as string | undefined) ?? import.meta.env.MODE
+);
+const telemetryReleaseSha = (import.meta.env.VITE_RELEASE_SHA as string | undefined) ?? "local";
 
 export function DiffWorkbench() {
   const [document, setDocument] = useState<DiffDocument>(() => {
@@ -28,20 +34,28 @@ export function DiffWorkbench() {
   });
   const [history, setHistory] = useState<DiffDocument[]>(() => loadDocuments());
   const stats = useMemo(() => getDocumentStats(document), [document]);
+  const latestDocumentRef = useRef(document);
+  const latestStatsRef = useRef(stats);
   const telemetry = useMemo(
     () =>
       createTelemetryClient({
         enabled: telemetryEnabled && document.settings.telemetryOptIn,
+        environment: telemetryEnvironment,
         endpoint: telemetryEndpoint,
         platform: "web",
-        appVersion: "0.1.0"
+        releaseSha: telemetryReleaseSha
       }),
     [document.settings.telemetryOptIn]
   );
 
   useEffect(() => {
-    telemetry.track("app_opened", { telemetryOptIn: document.settings.telemetryOptIn });
-  }, [document.settings.telemetryOptIn, telemetry]);
+    telemetry.track("app_opened");
+  }, [telemetry]);
+
+  useEffect(() => {
+    latestDocumentRef.current = document;
+    latestStatsRef.current = stats;
+  }, [document, stats]);
 
   useEffect(() => {
     saveSettings(document.settings);
@@ -62,7 +76,7 @@ export function DiffWorkbench() {
       });
       telemetry.track("render_completed", {
         ...statsToTelemetryProperties(stats),
-        durationBucket: bucketDuration(durationMs)
+        duration_bucket: bucketDuration(durationMs)
       });
     });
 
@@ -71,15 +85,15 @@ export function DiffWorkbench() {
 
   const mode = document.source.kind;
 
-  const updateDocument = (patch: Partial<DiffDocument>) => {
+  const updateDocument = useCallback((patch: Partial<DiffDocument>) => {
     setDocument((currentDocument) => ({
       ...currentDocument,
       ...patch,
       updatedAt: new Date().toISOString()
     }));
-  };
+  }, []);
 
-  const updateSettings = (settings: Partial<ViewerSettings>) => {
+  const updateSettings = useCallback((settings: Partial<ViewerSettings>) => {
     setDocument((currentDocument) => ({
       ...currentDocument,
       settings: {
@@ -88,17 +102,16 @@ export function DiffWorkbench() {
       },
       updatedAt: new Date().toISOString()
     }));
-    telemetry.track("settings_changed", {
-      changedSettings: Object.keys(settings).sort().join(",")
-    });
-  };
+    const telemetrySetting = getTelemetrySettingName(settings);
+    telemetry.track("settings_changed", telemetrySetting ? { setting: telemetrySetting } : {});
+  }, [telemetry]);
 
-  const updateSource = (source: DiffSource) => {
+  const updateSource = useCallback((source: DiffSource) => {
     updateDocument({ source });
     telemetry.track("diff_loaded", statsToTelemetryProperties(getDocumentStats({ ...document, source })));
-  };
+  }, [document, telemetry, updateDocument]);
 
-  const changeMode = (nextMode: DiffSource["kind"]) => {
+  const changeMode = useCallback((nextMode: DiffSource["kind"]) => {
     if (nextMode === document.source.kind) {
       return;
     }
@@ -124,19 +137,19 @@ export function DiffWorkbench() {
         cacheKey: `new-empty-${Date.now()}`
       }
     });
-  };
+  }, [document, updateSource]);
 
-  const addAnnotation = (annotation: ReviewAnnotation) => {
+  const addAnnotation = useCallback((annotation: ReviewAnnotation) => {
     updateDocument({
       annotations: [annotation, ...document.annotations]
     });
     telemetry.track("annotation_added", {
       side: annotation.side,
-      lineBucket: bucketLine(annotation.lineNumber)
+      line_bucket: bucketLine(annotation.lineNumber)
     });
-  };
+  }, [document.annotations, telemetry, updateDocument]);
 
-  const resolveAnnotation = (id: string) => {
+  const resolveAnnotation = useCallback((id: string) => {
     updateDocument({
       annotations: document.annotations.map((annotation) =>
         annotation.id === id
@@ -147,54 +160,53 @@ export function DiffWorkbench() {
           : annotation
       )
     });
-  };
+  }, [document.annotations, updateDocument]);
 
-  const saveSnapshot = () => {
+  const saveSnapshot = useCallback(() => {
     const snapshot = {
       ...document,
-      id: crypto.randomUUID(),
       updatedAt: new Date().toISOString()
     };
     const nextHistory = [snapshot, ...history.filter((item) => item.id !== snapshot.id)].slice(0, 20);
     setHistory(nextHistory);
     saveDocuments(nextHistory);
-  };
+  }, [document, history]);
 
-  const loadSnapshot = (nextDocument: DiffDocument) => {
+  const loadSnapshot = useCallback((nextDocument: DiffDocument) => {
     setDocument({
       ...nextDocument,
       updatedAt: new Date().toISOString()
     });
-  };
+  }, []);
 
-  const exportCurrentDocument = (format: "patch" | "json") => {
-    const exported = exportDocument(document, format);
+  const exportCurrentDocument = useCallback((format: "patch" | "json") => {
+    const currentDocument = latestDocumentRef.current;
+    const currentStats = latestStatsRef.current;
+    const exported = exportDocument(currentDocument, format);
     const blob = new Blob([exported], { type: format === "json" ? "application/json" : "text/plain" });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement("a");
     link.href = url;
-    link.download = `${slugify(document.title)}.${format === "json" ? "json" : "patch"}`;
+    link.download = `${slugify(currentDocument.title)}.${format === "json" ? "json" : "patch"}`;
     link.click();
     URL.revokeObjectURL(url);
     telemetry.track("export_requested", {
       format,
-      ...statsToTelemetryProperties(stats)
+      ...statsToTelemetryProperties(currentStats)
     });
-  };
+  }, [telemetry]);
+
+  const handleNativeRenderDiff = useCallback((nextDocument: DiffDocument) => {
+    setDocument(nextDocument);
+  }, []);
 
   useEffect(() => {
     return installNativeBridge({
-      onRenderDiff(nextDocument) {
-        setDocument(nextDocument);
-      },
-      onUpdateSettings(settings) {
-        updateSettings(settings);
-      },
-      onExportRequested(format) {
-        exportCurrentDocument(format);
-      }
+      onRenderDiff: handleNativeRenderDiff,
+      onUpdateSettings: updateSettings,
+      onExportRequested: exportCurrentDocument
     });
-  });
+  }, [exportCurrentDocument, handleNativeRenderDiff, updateSettings]);
 
   return (
     <div className="app-shell">

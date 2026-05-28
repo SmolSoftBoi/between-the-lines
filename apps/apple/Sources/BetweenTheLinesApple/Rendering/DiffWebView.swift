@@ -146,7 +146,7 @@ private final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScript
             return
         }
 
-        let script = "window.postMessage({\"type\":\"renderDiff\",\"document\":\(pendingDocumentJSON)}, \"*\");"
+        let script = makeRenderDiffPostMessageScript(documentJSON: pendingDocumentJSON)
         webView.evaluateJavaScript(script) { [telemetry] _, error in
             if error != nil {
                 telemetry.track(TelemetryEvent(name: .renderFailed, properties: ["reason": "post_message_failed"]))
@@ -287,4 +287,12 @@ private func integerString(from value: Any?) -> String? {
 
 private func isASCIIDigit(_ scalar: UnicodeScalar) -> Bool {
     scalar.value >= 48 && scalar.value <= 57
+}
+
+func makeRenderDiffPostMessageScript(documentJSON: String) -> String {
+    let javaScriptSafeJSON = documentJSON
+        .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+        .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+
+    return "window.postMessage({\"type\":\"renderDiff\",\"document\":\(javaScriptSafeJSON)}, \"*\");"
 }

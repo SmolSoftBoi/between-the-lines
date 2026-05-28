@@ -70,8 +70,14 @@ public struct TelemetryEvent: Equatable, Sendable {
     ]
 
     private static let allowedSettings: Set<String> = [
+        "collapsed_context_threshold",
         "diff_style",
+        "line_diff_type",
         "line_numbers",
+        "overflow",
+        "telemetry_opt_in",
+        "theme",
+        "theme_type",
     ]
 }
 

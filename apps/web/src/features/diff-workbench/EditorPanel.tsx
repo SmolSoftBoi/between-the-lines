@@ -77,11 +77,12 @@ function FileInput({
   onFileChange(file: DiffFileVersion): void;
 }) {
   const update = (patch: Partial<DiffFileVersion>) => {
+    const nextName = patch.name ?? file.name;
     const contents = patch.contents ?? file.contents;
     onFileChange({
       ...file,
       ...patch,
-      cacheKey: `${file.name}-${contents.length}-${Date.now()}`
+      cacheKey: `${nextName}-${contents.length}-${Date.now()}`
     });
   };
 

@@ -1,6 +1,12 @@
-import type { DiffStats, TextSizeBucket } from "../features/diff-workbench/types";
+import type {
+  DiffStats,
+  TelemetrySettingName,
+  TextSizeBucket,
+  ViewerSettings
+} from "../features/diff-workbench/types";
 
 export type TelemetryPlatform = "web" | "iOS" | "macOS";
+export type TelemetryEnvironment = "development" | "preview" | "production";
 
 export type TelemetryProperty =
   | string
@@ -10,11 +16,12 @@ export type TelemetryProperty =
   | null;
 
 export interface TelemetryEvent {
-  name: TelemetryEventName;
-  platform: TelemetryPlatform;
-  appVersion: string;
-  sessionId: string;
-  timestamp: string;
+  event_name: TelemetryEventName;
+  event_version: number;
+  occurred_at: string;
+  environment: TelemetryEnvironment;
+  release_sha: string;
+  session_id: string;
   properties: Record<string, TelemetryProperty>;
 }
 
@@ -31,22 +38,37 @@ export type TelemetryEventName =
 export interface TelemetryClientOptions {
   enabled: boolean;
   endpoint?: string;
+  environment: TelemetryEnvironment;
   platform: TelemetryPlatform;
-  appVersion: string;
+  releaseSha: string;
 }
 
 const allowedTelemetryPropertyKeys = new Set([
-  "telemetryOptIn",
   "additions",
   "deletions",
+  "duration_bucket",
   "files",
-  "sizeBucket",
-  "durationBucket",
-  "changedSettings",
+  "format",
+  "line_bucket",
+  "platform",
+  "setting",
   "side",
-  "lineBucket",
-  "format"
+  "size_bucket"
 ]);
+
+const telemetrySettingNames: Array<{
+  key: keyof ViewerSettings;
+  name: TelemetrySettingName;
+}> = [
+  { key: "diffStyle", name: "diff_style" },
+  { key: "overflow", name: "overflow" },
+  { key: "lineNumbers", name: "line_numbers" },
+  { key: "themeType", name: "theme_type" },
+  { key: "theme", name: "theme" },
+  { key: "lineDiffType", name: "line_diff_type" },
+  { key: "collapsedContextThreshold", name: "collapsed_context_threshold" },
+  { key: "telemetryOptIn", name: "telemetry_opt_in" }
+];
 
 export function createTelemetryClient(options: TelemetryClientOptions) {
   const sessionId = crypto.randomUUID();
@@ -58,9 +80,10 @@ export function createTelemetryClient(options: TelemetryClientOptions) {
       }
 
       const event = createTelemetryEvent({
+        environment: options.environment,
         name,
         platform: options.platform,
-        appVersion: options.appVersion,
+        releaseSha: options.releaseSha,
         sessionId,
         properties
       });
@@ -90,19 +113,24 @@ export function createTelemetryClient(options: TelemetryClientOptions) {
 }
 
 export function createTelemetryEvent(input: {
+  environment: TelemetryEnvironment;
   name: TelemetryEventName;
   platform: TelemetryPlatform;
-  appVersion: string;
+  releaseSha: string;
   sessionId: string;
   properties?: Record<string, TelemetryProperty>;
 }): TelemetryEvent {
   return {
-    name: input.name,
-    platform: input.platform,
-    appVersion: input.appVersion,
-    sessionId: input.sessionId,
-    timestamp: new Date().toISOString(),
-    properties: sanitizeTelemetryProperties(input.properties ?? {})
+    event_name: input.name,
+    event_version: 1,
+    occurred_at: new Date().toISOString(),
+    environment: input.environment,
+    release_sha: input.releaseSha,
+    session_id: input.sessionId,
+    properties: sanitizeTelemetryProperties({
+      ...(input.properties ?? {}),
+      platform: input.platform
+    })
   };
 }
 
@@ -111,8 +139,22 @@ export function statsToTelemetryProperties(stats: DiffStats): Record<string, Tel
     additions: stats.additions,
     deletions: stats.deletions,
     files: stats.files,
-    sizeBucket: stats.sizeBucket
+    size_bucket: stats.sizeBucket
   };
+}
+
+export function getTelemetryEnvironment(value: string | undefined): TelemetryEnvironment {
+  if (value === "preview" || value === "production") {
+    return value;
+  }
+
+  return "development";
+}
+
+export function getTelemetrySettingName(
+  settings: Partial<ViewerSettings>
+): TelemetrySettingName | undefined {
+  return telemetrySettingNames.find(({ key }) => key in settings)?.name;
 }
 
 export function sanitizeTelemetryProperties(

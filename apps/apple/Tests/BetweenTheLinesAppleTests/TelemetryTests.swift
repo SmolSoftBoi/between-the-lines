@@ -25,6 +25,7 @@ final class TelemetryTests: XCTestCase {
                 "files": "1",
                 "reason": "invalid_bridge_message",
                 "setting": "diff_style",
+                "setting_overflow": "overflow",
                 "size_bucket": "huge",
                 "source": "web_renderer",
                 "file_name": "secret.swift",
@@ -57,7 +58,7 @@ final class TelemetryTests: XCTestCase {
                 "duration_ms": "",
                 "files": "one",
                 "reason": "fatal error: /tmp/private.patch",
-                "setting": "theme",
+                "setting": "file_path",
                 "size_bucket": "massive",
                 "source": "native_renderer",
             ]

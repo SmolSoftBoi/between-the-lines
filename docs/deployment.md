@@ -14,7 +14,7 @@ Prepare `between-the-lines` for repeatable web, iOS, and macOS deployments while
 - A tested build artifact from the app workspace
 - Environment variables based on `.env.example`
 - A release identifier such as `RELEASE_SHA`
-- Hosting provider credentials supplied through the deployment platform, not committed files
+- Hosting provider credentials supplied through the deployment platform rather than in committed files
 
 ## 📤 Outputs
 

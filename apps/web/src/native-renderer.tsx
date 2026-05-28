@@ -5,6 +5,7 @@ import { createInitialDocument, defaultSettings } from "./features/diff-workbenc
 import type { DiffDocument, DiffFileVersion, DiffSource, ViewerSettings } from "./features/diff-workbench/types";
 import { getDocumentStats } from "./lib/diffStats";
 import { installNativeBridge, postNativeMessage } from "./lib/nativeBridge";
+import { getTelemetrySettingName } from "./lib/telemetry";
 import "./styles.css";
 import "./native-renderer.css";
 
@@ -52,7 +53,12 @@ export function NativeRendererApp() {
   const updateSettings = useCallback((settings: Partial<ViewerSettings>) => {
     setDocument((currentDocument) => {
       const nextSettings = { ...currentDocument.settings, ...settings };
-      postNativeMessage({ type: "updateSettings", settings: nextSettings });
+      const telemetrySetting = getTelemetrySettingName(settings);
+      postNativeMessage({
+        type: "updateSettings",
+        settings: nextSettings,
+        ...(telemetrySetting ? { setting: telemetrySetting } : {})
+      });
 
       return {
         ...currentDocument,

@@ -29,11 +29,14 @@ export function getDocumentStats(document: DiffDocument): DiffStats {
     };
   }
 
+  const changedLines = countChangedLines(
+    document.source.oldFile.contents,
+    document.source.newFile.contents
+  );
+
   return {
-    additions: countChangedLines(document.source.oldFile.contents, document.source.newFile.contents)
-      .additions,
-    deletions: countChangedLines(document.source.oldFile.contents, document.source.newFile.contents)
-      .deletions,
+    additions: changedLines.additions,
+    deletions: changedLines.deletions,
     files: 1,
     sizeBucket: bucketTextSize(
       document.source.oldFile.contents.length + document.source.newFile.contents.length

@@ -33,4 +33,27 @@ describe("getDocumentStats", () => {
       files: 1
     });
   });
+
+  it("counts file-pair additions and deletions from one comparison result", () => {
+    const document = createInitialDocument();
+    document.source = {
+      kind: "file-pair",
+      oldFile: {
+        name: "example.ts",
+        contents: ["same", "old", "removed"].join("\n"),
+        cacheKey: "old-example"
+      },
+      newFile: {
+        name: "example.ts",
+        contents: ["same", "new", "added"].join("\n"),
+        cacheKey: "new-example"
+      }
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 2,
+      deletions: 2,
+      files: 1
+    });
+  });
 });

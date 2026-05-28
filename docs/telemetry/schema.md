@@ -13,12 +13,12 @@ Every event should use this envelope:
 | `event_name` | string | Yes | Lowercase snake case, such as `render_completed`. |
 | `event_version` | integer | Yes | Start at `1`; increment only for breaking property changes. |
 | `occurred_at` | ISO 8601 string | Yes | Client or server event time in UTC. |
-| `received_at` | ISO 8601 string | Yes | Server receipt time in UTC. |
 | `environment` | string | Yes | One of `development`, `preview`, or `production`. |
 | `release_sha` | string | Yes | Commit or release identifier. |
-| `anonymous_subject_id` | string | No | Rotating, salted hash only; never a raw user or device ID. |
 | `session_id` | string | No | Random, short-lived identifier; avoid cross-device tracking. |
 | `properties` | object | Yes | Event-specific fields from the allow-list below. |
+
+Ingestion may add `received_at` after receipt. Clients must not invent server receipt timestamps.
 
 ## ✅ Allowed properties
 
@@ -28,11 +28,9 @@ Start with this small allow-list:
 | --- | --- | --- | --- |
 | `platform` | string | `web` | Use `web`, `iOS`, or `macOS`. |
 | `duration_bucket` | string | `under_500ms` | Prefer coarse timing buckets. |
-| `result` | string | `success` | Prefer enums such as `success`, `failure`, or `cancelled`. |
-| `error_code` | string | `network_timeout` | Use safe internal codes, not raw exception messages. |
-| `diff_style` | string | `split` | Option value only. |
-| `overflow` | string | `wrap` | Option value only. |
-| `line_diff_type` | string | `word` | Option value only. |
+| `setting` | string | `diff_style` | Option name only. |
+| `line_bucket` | string | `top` | Coarse annotation location only. |
+| `format` | string | `patch` | Export format only. |
 | `size_bucket` | string | `small` | One of `empty`, `small`, `medium`, `large`, `huge`. |
 | `files` | integer | `1` | Aggregate count only. |
 | `additions` | integer | `24` | Aggregate count only. |
@@ -71,16 +69,12 @@ Events must reject fields that contain personally identifiable information or se
   "event_name": "render_completed",
   "event_version": 1,
   "occurred_at": "2026-05-22T10:15:30Z",
-  "received_at": "2026-05-22T10:15:31Z",
   "environment": "preview",
   "release_sha": "abc1234",
-  "anonymous_subject_id": "rotating_hash_30d",
   "session_id": "session_15m_random",
   "properties": {
     "duration_bucket": "under_500ms",
-    "result": "success",
     "platform": "web",
-    "diff_style": "split",
     "size_bucket": "small",
     "files": 1,
     "additions": 24,

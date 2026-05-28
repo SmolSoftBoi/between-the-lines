@@ -44,6 +44,16 @@ export interface ViewerSettings {
   telemetryOptIn: boolean;
 }
 
+export type TelemetrySettingName =
+  | "collapsed_context_threshold"
+  | "diff_style"
+  | "line_diff_type"
+  | "line_numbers"
+  | "overflow"
+  | "telemetry_opt_in"
+  | "theme"
+  | "theme_type";
+
 export interface ReviewAnnotation {
   id: string;
   side: AnnotationSide;
@@ -70,6 +80,7 @@ export type NativeRendererMessage =
   | {
       type: "updateSettings";
       settings: Partial<ViewerSettings>;
+      setting?: TelemetrySettingName;
     }
   | {
       type: "exportRequested";
