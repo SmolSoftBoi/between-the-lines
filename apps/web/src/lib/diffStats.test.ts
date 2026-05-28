@@ -56,4 +56,73 @@ describe("getDocumentStats", () => {
       files: 1
     });
   });
+
+  it("counts empty old file contents as zero comparable lines", () => {
+    const document = createInitialDocument();
+    document.source = {
+      kind: "file-pair",
+      oldFile: {
+        name: "empty.ts",
+        contents: "",
+        cacheKey: "old-empty"
+      },
+      newFile: {
+        name: "empty.ts",
+        contents: "const added = true;",
+        cacheKey: "new-empty"
+      }
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 1,
+      deletions: 0,
+      files: 1
+    });
+  });
+
+  it("counts empty new file contents as zero comparable lines", () => {
+    const document = createInitialDocument();
+    document.source = {
+      kind: "file-pair",
+      oldFile: {
+        name: "empty.ts",
+        contents: "const removed = true;",
+        cacheKey: "old-empty"
+      },
+      newFile: {
+        name: "empty.ts",
+        contents: "",
+        cacheKey: "new-empty"
+      }
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 0,
+      deletions: 1,
+      files: 1
+    });
+  });
+
+  it("counts two empty file versions as unchanged", () => {
+    const document = createInitialDocument();
+    document.source = {
+      kind: "file-pair",
+      oldFile: {
+        name: "empty.ts",
+        contents: "",
+        cacheKey: "old-empty"
+      },
+      newFile: {
+        name: "empty.ts",
+        contents: "",
+        cacheKey: "new-empty"
+      }
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 0,
+      deletions: 0,
+      files: 1
+    });
+  });
 });

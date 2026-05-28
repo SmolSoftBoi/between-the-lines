@@ -78,8 +78,8 @@ function countChangedLines(
   oldContents: string,
   newContents: string
 ): Pick<DiffStats, "additions" | "deletions"> {
-  const oldLines = oldContents.split("\n");
-  const newLines = newContents.split("\n");
+  const oldLines = splitComparableLines(oldContents);
+  const newLines = splitComparableLines(newContents);
   const maxLength = Math.max(oldLines.length, newLines.length);
   let additions = 0;
   let deletions = 0;
@@ -108,4 +108,12 @@ function countChangedLines(
   }
 
   return { additions, deletions };
+}
+
+function splitComparableLines(contents: string): string[] {
+  if (contents === "") {
+    return [];
+  }
+
+  return contents.split("\n");
 }

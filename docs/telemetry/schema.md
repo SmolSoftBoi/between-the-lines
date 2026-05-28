@@ -30,6 +30,7 @@ Start with this small allow-list:
 | `duration_bucket` | string | `under_500ms` | Prefer coarse timing buckets. |
 | `setting` | string | `diff_style` | Option name only. |
 | `line_bucket` | string | `top` | Coarse annotation location only. |
+| `side` | string | `additions` | Annotation side only; use `additions` or `deletions`. |
 | `format` | string | `patch` | Export format only. |
 | `size_bucket` | string | `small` | One of `empty`, `small`, `medium`, `large`, `huge`. |
 | `files` | integer | `1` | Aggregate count only. |
