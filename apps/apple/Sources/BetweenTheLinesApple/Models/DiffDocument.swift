@@ -30,8 +30,8 @@ public struct DiffDocument: Codable, Equatable, Identifiable, Sendable {
     public var stats: DiffStats {
         switch source {
         case .filePair(let oldFile, let newFile):
-            let oldLines = oldFile.contents.split(separator: "\n", omittingEmptySubsequences: false)
-            let newLines = newFile.contents.split(separator: "\n", omittingEmptySubsequences: false)
+            let oldLines = splitComparableLines(oldFile.contents)
+            let newLines = splitComparableLines(newFile.contents)
             let maxCount = max(oldLines.count, newLines.count)
             var additions = 0
             var deletions = 0
@@ -156,6 +156,10 @@ public enum DiffSource: Codable, Equatable, Sendable {
             try container.encode(patch, forKey: .patch)
         }
     }
+}
+
+private func splitComparableLines(_ contents: String) -> [Substring] {
+    contents.isEmpty ? [] : contents.split(separator: "\n", omittingEmptySubsequences: false)
 }
 
 public struct DiffFileVersion: Codable, Equatable, Sendable {

@@ -31,6 +31,30 @@ final class DiffDocumentTests: XCTestCase {
         XCTAssertEqual(document.stats.files, 1)
     }
 
+    func testFilePairStatsTreatEmptyOldFileAsZeroLines() {
+        let document = makeFilePairDocument(oldContents: "", newContents: "created")
+
+        XCTAssertEqual(document.stats.additions, 1)
+        XCTAssertEqual(document.stats.deletions, 0)
+        XCTAssertEqual(document.stats.files, 1)
+    }
+
+    func testFilePairStatsTreatEmptyNewFileAsZeroLines() {
+        let document = makeFilePairDocument(oldContents: "removed", newContents: "")
+
+        XCTAssertEqual(document.stats.additions, 0)
+        XCTAssertEqual(document.stats.deletions, 1)
+        XCTAssertEqual(document.stats.files, 1)
+    }
+
+    func testFilePairStatsTreatBothEmptyFilesAsZeroLines() {
+        let document = makeFilePairDocument(oldContents: "", newContents: "")
+
+        XCTAssertEqual(document.stats.additions, 0)
+        XCTAssertEqual(document.stats.deletions, 0)
+        XCTAssertEqual(document.stats.files, 1)
+    }
+
     func testRendererEscapesUserVisibleText() {
         let document = DiffDocument(
             title: "<Title>",
@@ -42,5 +66,15 @@ final class DiffDocumentTests: XCTestCase {
         XCTAssertTrue(html.contains("&lt;Title&gt;"))
         XCTAssertTrue(html.contains("&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;"))
         XCTAssertFalse(html.contains("<script>alert"))
+    }
+
+    private func makeFilePairDocument(oldContents: String, newContents: String) -> DiffDocument {
+        DiffDocument(
+            title: "File pair",
+            source: .filePair(
+                oldFile: DiffFileVersion(name: "before.txt", contents: oldContents),
+                newFile: DiffFileVersion(name: "after.txt", contents: newContents)
+            )
+        )
     }
 }
