@@ -15,7 +15,7 @@ Every event should use this envelope:
 | `occurred_at` | ISO 8601 string | Yes | Client or server event time in UTC. |
 | `environment` | string | Yes | One of `development`, `preview`, or `production`. |
 | `release_sha` | string | Yes | Commit or release identifier. |
-| `session_id` | string | No | Random, short-lived identifier; avoid cross-device tracking. |
+| `session_id` | string | Yes | Random, short-lived identifier; avoid cross-device tracking. |
 | `properties` | object | Yes | Event-specific fields from the allow-list below. |
 
 Ingestion may add `received_at` after receipt. Clients must not invent server receipt timestamps.
@@ -28,6 +28,7 @@ Start with this small allow-list:
 | --- | --- | --- | --- |
 | `platform` | string | `web` | Use `web`, `iOS`, or `macOS`. |
 | `duration_bucket` | string | `under_500ms` | Prefer coarse timing buckets. |
+| `reason` | string | `invalid_bridge_message` | Fixed native failure reason only. |
 | `setting` | string | `diff_style` | Option name only. |
 | `line_bucket` | string | `top` | Coarse annotation location only. |
 | `side` | string | `additions` | Annotation side only; use `additions` or `deletions`. |

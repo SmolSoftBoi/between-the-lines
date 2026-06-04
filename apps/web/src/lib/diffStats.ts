@@ -1,4 +1,9 @@
-import type { DiffDocument, DiffStats, TextSizeBucket } from "../features/diff-workbench/types";
+import type {
+  DiffDocument,
+  DiffSource,
+  DiffStats,
+  TextSizeBucket
+} from "../features/diff-workbench/types";
 
 export function bucketTextSize(characterCount: number): TextSizeBucket {
   if (characterCount === 0) {
@@ -21,17 +26,21 @@ export function bucketTextSize(characterCount: number): TextSizeBucket {
 }
 
 export function getDocumentStats(document: DiffDocument): DiffStats {
-  if (document.source.kind === "patch") {
+  return getSourceStats(document.source);
+}
+
+export function getSourceStats(source: DiffSource): DiffStats {
+  if (source.kind === "patch") {
     return {
-      ...countPatchLines(document.source.patch),
-      files: countPatchFiles(document.source.patch),
-      sizeBucket: bucketTextSize(document.source.patch.length)
+      ...countPatchLines(source.patch),
+      files: countPatchFiles(source.patch),
+      sizeBucket: bucketTextSize(source.patch.length)
     };
   }
 
   const changedLines = countChangedLines(
-    document.source.oldFile.contents,
-    document.source.newFile.contents
+    source.oldFile.contents,
+    source.newFile.contents
   );
 
   return {
@@ -39,7 +48,7 @@ export function getDocumentStats(document: DiffDocument): DiffStats {
     deletions: changedLines.deletions,
     files: 1,
     sizeBucket: bucketTextSize(
-      document.source.oldFile.contents.length + document.source.newFile.contents.length
+      source.oldFile.contents.length + source.newFile.contents.length
     )
   };
 }

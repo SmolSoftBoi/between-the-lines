@@ -27,6 +27,16 @@ final class DiffBridgeMessageTests: XCTestCase {
         XCTAssertEqual(event.properties, ["reason": "unknown_bridge_message"])
     }
 
+    func testRenderStartedClassifiesWithoutSourceMetadata() {
+        let event = classifyDiffBridgeMessageBody([
+            "type": "renderStarted",
+            "source": "web_renderer",
+        ])
+
+        XCTAssertEqual(event.name, .renderStarted)
+        XCTAssertEqual(event.properties, [:])
+    }
+
     func testRenderCompletedClassifiesWithSafeRendererMetadata() {
         let event = classifyDiffBridgeMessageBody([
             "type": "renderCompleted",
@@ -46,10 +56,9 @@ final class DiffBridgeMessageTests: XCTestCase {
             [
                 "additions": "3",
                 "deletions": "1",
-                "duration_ms": "13",
+                "duration_bucket": "under_100ms",
                 "files": "2",
                 "size_bucket": "small",
-                "source": "web_renderer",
             ]
         )
     }
@@ -72,10 +81,9 @@ final class DiffBridgeMessageTests: XCTestCase {
             [
                 "additions": "7",
                 "deletions": "0",
-                "duration_ms": "42",
+                "duration_bucket": "under_100ms",
                 "files": "001",
                 "size_bucket": "medium",
-                "source": "web_renderer",
             ]
         )
     }
@@ -97,7 +105,6 @@ final class DiffBridgeMessageTests: XCTestCase {
             event.properties,
             [
                 "size_bucket": "small",
-                "source": "web_renderer",
             ]
         )
     }
@@ -114,7 +121,6 @@ final class DiffBridgeMessageTests: XCTestCase {
             event.properties,
             [
                 "setting": "overflow",
-                "source": "web_renderer",
             ]
         )
     }
@@ -128,5 +134,27 @@ final class DiffBridgeMessageTests: XCTestCase {
         XCTAssertFalse(script.contains("\u{2029}"))
         XCTAssertTrue(script.contains(#"\u2028"#))
         XCTAssertTrue(script.contains(#"\u2029"#))
+    }
+
+    func testBundledRendererURLFindsSwiftPackageResources() throws {
+        let resourceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let rendererDirectoryURL = resourceURL
+            .appendingPathComponent("Resources/native-renderer", isDirectory: true)
+        let rendererURL = rendererDirectoryURL.appendingPathComponent("native.html")
+
+        try FileManager.default.createDirectory(
+            at: rendererDirectoryURL,
+            withIntermediateDirectories: true
+        )
+        try "<html></html>".write(to: rendererURL, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: resourceURL)
+        }
+
+        XCTAssertEqual(
+            bundledRendererURL(environment: [:], resourceURLs: [resourceURL]),
+            rendererURL
+        )
     }
 }

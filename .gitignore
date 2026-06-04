@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-native/
+apps/apple/Sources/BetweenTheLinesApple/Resources/native-renderer/
 build/
 DerivedData/
 .playwright-mcp/

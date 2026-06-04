@@ -6,7 +6,7 @@ PACKAGE_DIR="$ROOT_DIR/apps/apple"
 APP_NAME="BetweenTheLinesPreview"
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 EXECUTABLE="$PACKAGE_DIR/.build/debug/$APP_NAME"
-WEB_RENDERER_DIR="$ROOT_DIR/apps/web/dist-native"
+WEB_RENDERER_DIR="$ROOT_DIR/apps/apple/Sources/BetweenTheLinesApple/Resources/native-renderer"
 
 cd "$ROOT_DIR"
 npm --workspace apps/web run build:native-renderer

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { exportDocument } from "../../lib/exportDocument";
-import { getDocumentStats } from "../../lib/diffStats";
+import { getDocumentStats, getSourceStats } from "../../lib/diffStats";
 import { installNativeBridge, postNativeMessage } from "../../lib/nativeBridge";
 import {
   createTelemetryClient,
@@ -33,7 +33,7 @@ export function DiffWorkbench() {
     };
   });
   const [history, setHistory] = useState<DiffDocument[]>(() => loadDocuments());
-  const stats = useMemo(() => getDocumentStats(document), [document]);
+  const stats = useMemo(() => getSourceStats(document.source), [document.source]);
   const latestDocumentRef = useRef(document);
   const latestStatsRef = useRef(stats);
   const telemetry = useMemo(

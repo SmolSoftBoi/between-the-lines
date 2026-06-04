@@ -20,7 +20,10 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "BetweenTheLinesApple"
+            name: "BetweenTheLinesApple",
+            resources: [
+                .copy("Resources"),
+            ]
         ),
         .executableTarget(
             name: "BetweenTheLinesPreview",

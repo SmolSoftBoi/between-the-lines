@@ -28,12 +28,12 @@ public struct TelemetryEvent: Equatable, Sendable {
 
     private static func isAllowedMetadataValue(key: String, value: String) -> Bool {
         switch key {
-        case "additions", "deletions", "files", "duration_ms":
+        case "additions", "deletions", "files":
             return isIntegerString(value)
+        case "duration_bucket":
+            return allowedDurationBuckets.contains(value)
         case "size_bucket":
             return allowedSizeBuckets.contains(value)
-        case "source":
-            return value == "web_renderer"
         case "reason":
             return allowedReasons.contains(value)
         case "setting":
@@ -59,6 +59,13 @@ public struct TelemetryEvent: Equatable, Sendable {
         "medium",
         "large",
         "huge",
+    ]
+
+    private static let allowedDurationBuckets: Set<String> = [
+        "under_100ms",
+        "under_500ms",
+        "under_2s",
+        "over_2s",
     ]
 
     private static let allowedReasons: Set<String> = [

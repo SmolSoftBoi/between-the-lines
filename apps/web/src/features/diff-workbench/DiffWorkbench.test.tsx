@@ -87,6 +87,16 @@ describe("DiffWorkbench native bridge lifecycle", () => {
 
     expect(nativeBridgeMock.installNativeBridge).toHaveBeenCalledOnce();
   });
+
+  it("does not resend render messages when only the title changes", async () => {
+    render(<DiffWorkbench />);
+
+    await waitFor(() => expect(nativeBridgeMock.postNativeMessage).toHaveBeenCalledOnce());
+
+    fireEvent.click(screen.getByRole("button", { name: "Update title" }));
+
+    expect(nativeBridgeMock.postNativeMessage).toHaveBeenCalledOnce();
+  });
 });
 
 describe("DiffWorkbench history", () => {

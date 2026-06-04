@@ -88,8 +88,6 @@ private final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScript
     }
 
     func render(_ document: DiffDocument, in webView: WKWebView, fallbackHTML: String) {
-        telemetry.track(TelemetryEvent(name: .renderStarted, properties: document.stats.telemetryProperties))
-
         guard let documentJSON = encode(document) else {
             telemetry.track(TelemetryEvent(name: .renderFailed, properties: ["reason": "encode_failed"]))
             webView.loadHTMLString(fallbackHTML, baseURL: nil)
@@ -156,32 +154,6 @@ private final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScript
         self.pendingDocumentJSON = nil
     }
 
-    private func bundledRendererURL() -> URL? {
-        if
-            let explicitPath = ProcessInfo.processInfo.environment["BETWEEN_THE_LINES_RENDERER_PATH"],
-            FileManager.default.fileExists(atPath: explicitPath)
-        {
-            return URL(fileURLWithPath: explicitPath)
-        }
-
-        guard let resourceURL = Bundle.main.resourceURL else {
-            return nil
-        }
-
-        let rendererDirectoryURL = resourceURL
-            .appendingPathComponent("native-renderer", isDirectory: true)
-
-        for fileName in ["index.html", "native.html"] {
-            let rendererURL = rendererDirectoryURL.appendingPathComponent(fileName)
-
-            if FileManager.default.fileExists(atPath: rendererURL.path) {
-                return rendererURL
-            }
-        }
-
-        return nil
-    }
-
 }
 
 struct DiffBridgeTelemetryEvent: Equatable {
@@ -209,7 +181,7 @@ func classifyDiffBridgeMessageBody(_ messageBody: Any) -> DiffBridgeTelemetryEve
     case "renderStarted":
         return DiffBridgeTelemetryEvent(
             name: .renderStarted,
-            properties: ["source": "web_renderer"]
+            properties: [:]
         )
     case "renderCompleted":
         return DiffBridgeTelemetryEvent(
@@ -229,7 +201,7 @@ func classifyDiffBridgeMessageBody(_ messageBody: Any) -> DiffBridgeTelemetryEve
     case "exportRequested":
         return DiffBridgeTelemetryEvent(
             name: .exportRequested,
-            properties: ["source": "web_renderer"]
+            properties: [:]
         )
     default:
         return DiffBridgeTelemetryEvent(
@@ -240,9 +212,9 @@ func classifyDiffBridgeMessageBody(_ messageBody: Any) -> DiffBridgeTelemetryEve
 }
 
 private func telemetryProperties(from body: [String: Any]) -> [String: String] {
-    var properties: [String: String] = ["source": "web_renderer"]
+    var properties: [String: String] = [:]
 
-    properties["duration_ms"] = integerString(from: body["durationMs"])
+    properties["duration_bucket"] = durationBucket(from: body["durationMs"])
 
     guard let stats = body["stats"] as? [String: Any] else {
         return properties
@@ -257,9 +229,84 @@ private func telemetryProperties(from body: [String: Any]) -> [String: String] {
 }
 
 private func settingsProperties(from body: [String: Any]) -> [String: String] {
-    var properties: [String: String] = ["source": "web_renderer"]
+    var properties: [String: String] = [:]
     properties["setting"] = body["setting"] as? String
     return properties
+}
+
+func bundledRendererURL(
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    resourceURLs: [URL?] = [Bundle.module.resourceURL, Bundle.main.resourceURL]
+) -> URL? {
+    if
+        let explicitPath = environment["BETWEEN_THE_LINES_RENDERER_PATH"],
+        let explicitRendererURL = explicitRendererURL(from: explicitPath)
+    {
+        return explicitRendererURL
+    }
+
+    for resourceURL in resourceURLs.compactMap({ $0 }) {
+        for rendererDirectoryURL in rendererDirectoryURLs(in: resourceURL) {
+            if let rendererURL = rendererHTMLURL(in: rendererDirectoryURL) {
+                return rendererURL
+            }
+        }
+    }
+
+    return nil
+}
+
+private func explicitRendererURL(from path: String) -> URL? {
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
+        return nil
+    }
+
+    let url = URL(fileURLWithPath: path, isDirectory: isDirectory.boolValue)
+    if isDirectory.boolValue {
+        return rendererHTMLURL(in: url)
+    }
+
+    return url
+}
+
+private func rendererDirectoryURLs(in resourceURL: URL) -> [URL] {
+    [
+        resourceURL.appendingPathComponent("native-renderer", isDirectory: true),
+        resourceURL.appendingPathComponent("Resources/native-renderer", isDirectory: true),
+    ]
+}
+
+private func rendererHTMLURL(in rendererDirectoryURL: URL) -> URL? {
+    for fileName in ["index.html", "native.html"] {
+        let rendererURL = rendererDirectoryURL.appendingPathComponent(fileName)
+
+        if FileManager.default.fileExists(atPath: rendererURL.path) {
+            return rendererURL
+        }
+    }
+
+    return nil
+}
+
+private func durationBucket(from value: Any?) -> String? {
+    guard let durationString = integerString(from: value), let durationMs = Int(durationString) else {
+        return nil
+    }
+
+    if durationMs < 100 {
+        return "under_100ms"
+    }
+
+    if durationMs < 500 {
+        return "under_500ms"
+    }
+
+    if durationMs < 2_000 {
+        return "under_2s"
+    }
+
+    return "over_2s"
 }
 
 private func integerString(from value: Any?) -> String? {

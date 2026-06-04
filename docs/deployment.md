@@ -41,7 +41,7 @@ Prepare `between-the-lines` for repeatable web, iOS, and macOS deployments while
 ## 📱 iOS
 
 - Target: App Store Connect/TestFlight once bundle ID, Apple team, and signing assets exist.
-- Build the hosted renderer with `npm run build:native-renderer` before archiving so the `WKWebView` pane uses the shared `@pierre/diffs` implementation.
+- Build the hosted renderer with `npm run build:native-renderer` before archiving; it writes the shared `@pierre/diffs` pane into the SwiftPM resource bundle.
 - Preferred automation: Xcode Cloud or a macOS CI runner with App Store Connect API credentials stored as secrets.
 - Do not commit provisioning profiles, certificates, API keys, or export options containing secrets.
 

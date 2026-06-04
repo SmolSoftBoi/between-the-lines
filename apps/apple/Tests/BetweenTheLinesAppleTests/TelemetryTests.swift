@@ -21,13 +21,12 @@ final class TelemetryTests: XCTestCase {
             properties: [
                 "additions": "12",
                 "deletions": "0",
-                "duration_ms": "240",
+                "duration_bucket": "under_500ms",
                 "files": "1",
                 "reason": "invalid_bridge_message",
                 "setting": "diff_style",
                 "setting_overflow": "overflow",
                 "size_bucket": "huge",
-                "source": "web_renderer",
                 "file_name": "secret.swift",
                 "patch": "+token",
                 "unknown": "private review note",
@@ -39,12 +38,11 @@ final class TelemetryTests: XCTestCase {
             [
                 "additions": "12",
                 "deletions": "0",
-                "duration_ms": "240",
+                "duration_bucket": "under_500ms",
                 "files": "1",
                 "reason": "invalid_bridge_message",
                 "setting": "diff_style",
                 "size_bucket": "huge",
-                "source": "web_renderer",
             ]
         )
     }
@@ -55,7 +53,7 @@ final class TelemetryTests: XCTestCase {
             properties: [
                 "additions": "12.5",
                 "deletions": "-1",
-                "duration_ms": "",
+                "duration_bucket": "240ms",
                 "files": "one",
                 "reason": "fatal error: /tmp/private.patch",
                 "setting": "file_path",

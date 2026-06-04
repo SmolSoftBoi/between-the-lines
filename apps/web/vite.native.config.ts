@@ -9,7 +9,9 @@ export default defineConfig({
   build: {
     target: "es2022",
     sourcemap: false,
-    outDir: "dist-native",
+    outDir: fileURLToPath(
+      new URL("../apple/Sources/BetweenTheLinesApple/Resources/native-renderer", import.meta.url)
+    ),
     emptyOutDir: true,
     rollupOptions: {
       input: fileURLToPath(new URL("native.html", import.meta.url))
