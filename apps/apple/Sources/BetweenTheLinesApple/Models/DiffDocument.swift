@@ -61,8 +61,33 @@ public struct DiffDocument: Codable, Equatable, Identifiable, Sendable {
             )
         case .patch(let patch):
             let lines = patch.split(separator: "\n", omittingEmptySubsequences: false)
-            let additions = lines.filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }.count
-            let deletions = lines.filter { $0.hasPrefix("-") && !$0.hasPrefix("---") }.count
+            var additions = 0
+            var deletions = 0
+            var insideHunk = false
+
+            for line in lines {
+                if line.hasPrefix("diff --git ") {
+                    insideHunk = false
+                    continue
+                }
+
+                if line.hasPrefix("@@ ") {
+                    insideHunk = true
+                    continue
+                }
+
+                if !insideHunk, isPatchFileHeader(line) {
+                    continue
+                }
+
+                if line.hasPrefix("+") {
+                    additions += 1
+                }
+
+                if line.hasPrefix("-") {
+                    deletions += 1
+                }
+            }
             let files = max(1, lines.filter { $0.hasPrefix("diff --git ") }.count)
 
             return DiffStats(
@@ -160,6 +185,16 @@ public enum DiffSource: Codable, Equatable, Sendable {
 
 private func splitComparableLines(_ contents: String) -> [Substring] {
     contents.isEmpty ? [] : contents.split(separator: "\n", omittingEmptySubsequences: false)
+}
+
+private func isPatchFileHeader(_ line: Substring) -> Bool {
+    let text = String(line)
+    return text == "---" ||
+        text == "+++" ||
+        text.hasPrefix("--- ") ||
+        text.hasPrefix("+++ ") ||
+        text.hasPrefix("---\t") ||
+        text.hasPrefix("+++\t")
 }
 
 public struct DiffFileVersion: Codable, Equatable, Sendable {

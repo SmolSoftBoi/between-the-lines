@@ -34,6 +34,27 @@ describe("getDocumentStats", () => {
     });
   });
 
+  it("counts changed hunk lines whose content starts with patch markers", () => {
+    const document = createInitialDocument();
+    document.source = {
+      kind: "patch",
+      patch: [
+        "--- a/example.env",
+        "+++ b/example.env",
+        "@@ -1,2 +1,2 @@",
+        "--- disabled",
+        "+++ enabled",
+        " unchanged"
+      ].join("\n")
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 1,
+      deletions: 1,
+      files: 1
+    });
+  });
+
   it("counts file-pair additions and deletions from one comparison result", () => {
     const document = createInitialDocument();
     document.source = {

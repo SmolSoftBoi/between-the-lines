@@ -54,9 +54,21 @@ export function getSourceStats(source: DiffSource): DiffStats {
 }
 
 function countPatchLines(patch: string): Pick<DiffStats, "additions" | "deletions"> {
+  let insideHunk = false;
+
   return patch.split("\n").reduce(
     (stats, line) => {
-      if (line.startsWith("+++") || line.startsWith("---")) {
+      if (line.startsWith("diff --git ")) {
+        insideHunk = false;
+        return stats;
+      }
+
+      if (line.startsWith("@@ ")) {
+        insideHunk = true;
+        return stats;
+      }
+
+      if (!insideHunk && isPatchFileHeader(line)) {
         return stats;
       }
 
@@ -72,6 +84,10 @@ function countPatchLines(patch: string): Pick<DiffStats, "additions" | "deletion
     },
     { additions: 0, deletions: 0 }
   );
+}
+
+function isPatchFileHeader(line: string): boolean {
+  return /^(?:---|\+\+\+)(?:\s|$)/u.test(line);
 }
 
 function countPatchFiles(patch: string): number {

@@ -31,6 +31,26 @@ final class DiffDocumentTests: XCTestCase {
         XCTAssertEqual(document.stats.files, 1)
     }
 
+    func testPatchStatsCountHunkLinesThatStartWithPatchMarkers() {
+        let document = DiffDocument(
+            title: "Patch",
+            source: .patch(
+                [
+                    "--- a/example.env",
+                    "+++ b/example.env",
+                    "@@ -1,2 +1,2 @@",
+                    "--- disabled",
+                    "+++ enabled",
+                    " unchanged",
+                ].joined(separator: "\n")
+            )
+        )
+
+        XCTAssertEqual(document.stats.additions, 1)
+        XCTAssertEqual(document.stats.deletions, 1)
+        XCTAssertEqual(document.stats.files, 1)
+    }
+
     func testFilePairStatsTreatEmptyOldFileAsZeroLines() {
         let document = makeFilePairDocument(oldContents: "", newContents: "created")
 
