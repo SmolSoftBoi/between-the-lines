@@ -55,6 +55,31 @@ describe("getDocumentStats", () => {
     });
   });
 
+  it("counts standard multi-file unified patches without git separators", () => {
+    const document = createInitialDocument();
+    document.source = {
+      kind: "patch",
+      patch: [
+        "--- a/first.txt",
+        "+++ b/first.txt",
+        "@@ -1 +1 @@",
+        "-old first",
+        "+new first",
+        "--- a/second.txt",
+        "+++ b/second.txt",
+        "@@ -1 +1 @@",
+        "-old second",
+        "+new second"
+      ].join("\n")
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 2,
+      deletions: 2,
+      files: 2
+    });
+  });
+
   it("counts file-pair additions and deletions from one comparison result", () => {
     const document = createInitialDocument();
     document.source = {
@@ -74,6 +99,29 @@ describe("getDocumentStats", () => {
     expect(getDocumentStats(document)).toMatchObject({
       additions: 2,
       deletions: 2,
+      files: 1
+    });
+  });
+
+  it("keeps file-pair stats aligned when a line is inserted before unchanged text", () => {
+    const document = createInitialDocument();
+    document.source = {
+      kind: "file-pair",
+      oldFile: {
+        name: "example.ts",
+        contents: ["a", "b"].join("\n"),
+        cacheKey: "old-example"
+      },
+      newFile: {
+        name: "example.ts",
+        contents: ["x", "a", "b"].join("\n"),
+        cacheKey: "new-example"
+      }
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 1,
+      deletions: 0,
       files: 1
     });
   });

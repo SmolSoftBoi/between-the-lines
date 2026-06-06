@@ -88,6 +88,21 @@ final class DiffBridgeMessageTests: XCTestCase {
         )
     }
 
+    func testRenderCompletedBucketsDoubleDurationsWithoutRounding() {
+        let event = classifyDiffBridgeMessageBody([
+            "type": "renderCompleted",
+            "durationMs": 99.6,
+        ])
+
+        XCTAssertEqual(event.name, .renderCompleted)
+        XCTAssertEqual(
+            event.properties,
+            [
+                "duration_bucket": "under_100ms",
+            ]
+        )
+    }
+
     func testRenderCompletedDropsInvalidNumericStringMetadata() {
         let event = classifyDiffBridgeMessageBody([
             "type": "renderCompleted",

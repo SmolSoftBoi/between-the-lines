@@ -51,8 +51,40 @@ final class DiffDocumentTests: XCTestCase {
         XCTAssertEqual(document.stats.files, 1)
     }
 
+    func testPatchStatsCountStandardMultiFileUnifiedPatches() {
+        let document = DiffDocument(
+            title: "Patch",
+            source: .patch(
+                [
+                    "--- a/first.txt",
+                    "+++ b/first.txt",
+                    "@@ -1 +1 @@",
+                    "-old first",
+                    "+new first",
+                    "--- a/second.txt",
+                    "+++ b/second.txt",
+                    "@@ -1 +1 @@",
+                    "-old second",
+                    "+new second",
+                ].joined(separator: "\n")
+            )
+        )
+
+        XCTAssertEqual(document.stats.additions, 2)
+        XCTAssertEqual(document.stats.deletions, 2)
+        XCTAssertEqual(document.stats.files, 2)
+    }
+
     func testFilePairStatsTreatEmptyOldFileAsZeroLines() {
         let document = makeFilePairDocument(oldContents: "", newContents: "created")
+
+        XCTAssertEqual(document.stats.additions, 1)
+        XCTAssertEqual(document.stats.deletions, 0)
+        XCTAssertEqual(document.stats.files, 1)
+    }
+
+    func testFilePairStatsKeepInsertedLineAlignedWithUnchangedText() {
+        let document = makeFilePairDocument(oldContents: "a\nb", newContents: "x\na\nb")
 
         XCTAssertEqual(document.stats.additions, 1)
         XCTAssertEqual(document.stats.deletions, 0)

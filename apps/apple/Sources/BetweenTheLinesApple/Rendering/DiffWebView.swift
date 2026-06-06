@@ -290,7 +290,7 @@ private func rendererHTMLURL(in rendererDirectoryURL: URL) -> URL? {
 }
 
 private func durationBucket(from value: Any?) -> String? {
-    guard let durationString = integerString(from: value), let durationMs = Int(durationString) else {
+    guard let durationMs = durationMilliseconds(from: value) else {
         return nil
     }
 
@@ -307,6 +307,29 @@ private func durationBucket(from value: Any?) -> String? {
     }
 
     return "over_2s"
+}
+
+private func durationMilliseconds(from value: Any?) -> Double? {
+    switch value {
+    case let value as Int where value >= 0:
+        return Double(value)
+    case let value as Double where value.isFinite && value >= 0:
+        return value
+    case let value as String:
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !trimmedValue.isEmpty,
+            trimmedValue.unicodeScalars.allSatisfy(isASCIIDigit),
+            let duration = Double(trimmedValue),
+            duration.isFinite
+        else {
+            return nil
+        }
+
+        return duration
+    default:
+        return nil
+    }
 }
 
 private func integerString(from value: Any?) -> String? {

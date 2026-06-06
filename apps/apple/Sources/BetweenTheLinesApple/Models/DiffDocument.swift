@@ -32,30 +32,11 @@ public struct DiffDocument: Codable, Equatable, Identifiable, Sendable {
         case .filePair(let oldFile, let newFile):
             let oldLines = splitComparableLines(oldFile.contents)
             let newLines = splitComparableLines(newFile.contents)
-            let maxCount = max(oldLines.count, newLines.count)
-            var additions = 0
-            var deletions = 0
-
-            for index in 0..<maxCount {
-                let oldLine = index < oldLines.count ? oldLines[index] : nil
-                let newLine = index < newLines.count ? newLines[index] : nil
-
-                if oldLine == newLine {
-                    continue
-                }
-
-                if oldLine != nil {
-                    deletions += 1
-                }
-
-                if newLine != nil {
-                    additions += 1
-                }
-            }
+            let changedLines = countChangedLines(oldLines: oldLines, newLines: newLines)
 
             return DiffStats(
-                additions: additions,
-                deletions: deletions,
+                additions: changedLines.additions,
+                deletions: changedLines.deletions,
                 files: 1,
                 sizeBucket: TextSizeBucket.characterCount(oldFile.contents.count + newFile.contents.count)
             )
@@ -63,20 +44,24 @@ public struct DiffDocument: Codable, Equatable, Identifiable, Sendable {
             let lines = patch.split(separator: "\n", omittingEmptySubsequences: false)
             var additions = 0
             var deletions = 0
-            var insideHunk = false
 
-            for line in lines {
+            var index = 0
+
+            while index < lines.count {
+                let line = lines[index]
+
                 if line.hasPrefix("diff --git ") {
-                    insideHunk = false
+                    index += 1
+                    continue
+                }
+
+                if isPatchFileHeaderPair(lines, at: index) {
+                    index += 2
                     continue
                 }
 
                 if line.hasPrefix("@@ ") {
-                    insideHunk = true
-                    continue
-                }
-
-                if !insideHunk, isPatchFileHeader(line) {
+                    index += 1
                     continue
                 }
 
@@ -87,8 +72,12 @@ public struct DiffDocument: Codable, Equatable, Identifiable, Sendable {
                 if line.hasPrefix("-") {
                     deletions += 1
                 }
+
+                index += 1
             }
-            let files = max(1, lines.filter { $0.hasPrefix("diff --git ") }.count)
+            let gitFileCount = lines.filter { $0.hasPrefix("diff --git ") }.count
+            let headerPairFileCount = countPatchFileHeaderPairs(lines)
+            let files = gitFileCount > 0 ? gitFileCount : max(1, headerPairFileCount)
 
             return DiffStats(
                 additions: additions,
@@ -187,13 +176,81 @@ private func splitComparableLines(_ contents: String) -> [Substring] {
     contents.isEmpty ? [] : contents.split(separator: "\n", omittingEmptySubsequences: false)
 }
 
-private func isPatchFileHeader(_ line: Substring) -> Bool {
+private func countChangedLines(oldLines: [Substring], newLines: [Substring]) -> (additions: Int, deletions: Int) {
+    let commonLineCount = countCommonLines(oldLines: oldLines, newLines: newLines)
+    return (
+        additions: newLines.count - commonLineCount,
+        deletions: oldLines.count - commonLineCount
+    )
+}
+
+private func countCommonLines(oldLines: [Substring], newLines: [Substring]) -> Int {
+    guard !oldLines.isEmpty, !newLines.isEmpty else {
+        return 0
+    }
+
+    var previousRow = Array(repeating: 0, count: newLines.count + 1)
+
+    for oldLine in oldLines {
+        var currentRow = Array(repeating: 0, count: newLines.count + 1)
+
+        for index in 1...newLines.count {
+            if oldLine == newLines[index - 1] {
+                currentRow[index] = previousRow[index - 1] + 1
+            } else {
+                currentRow[index] = max(previousRow[index], currentRow[index - 1])
+            }
+        }
+
+        previousRow = currentRow
+    }
+
+    return previousRow[newLines.count]
+}
+
+private func countPatchFileHeaderPairs(_ lines: [Substring]) -> Int {
+    var files = 0
+    var index = 0
+
+    while index < lines.count {
+        if isPatchFileHeaderPair(lines, at: index) {
+            files += 1
+            index += 2
+        } else {
+            index += 1
+        }
+    }
+
+    return files
+}
+
+private func isPatchFileHeaderPair(_ lines: [Substring], at index: Int) -> Bool {
+    guard index + 1 < lines.count else {
+        return false
+    }
+
+    guard isOldPatchFileHeader(lines[index]), isNewPatchFileHeader(lines[index + 1]) else {
+        return false
+    }
+
+    guard index + 2 < lines.count else {
+        return true
+    }
+
+    return lines[index + 2].hasPrefix("@@ ")
+}
+
+private func isOldPatchFileHeader(_ line: Substring) -> Bool {
     let text = String(line)
     return text == "---" ||
-        text == "+++" ||
         text.hasPrefix("--- ") ||
+        text.hasPrefix("---\t")
+}
+
+private func isNewPatchFileHeader(_ line: Substring) -> Bool {
+    let text = String(line)
+    return text == "+++" ||
         text.hasPrefix("+++ ") ||
-        text.hasPrefix("---\t") ||
         text.hasPrefix("+++\t")
 }
 

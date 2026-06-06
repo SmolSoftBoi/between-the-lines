@@ -54,40 +54,54 @@ export function getSourceStats(source: DiffSource): DiffStats {
 }
 
 function countPatchLines(patch: string): Pick<DiffStats, "additions" | "deletions"> {
-  let insideHunk = false;
+  const lines = patch.split("\n");
+  let additions = 0;
+  let deletions = 0;
 
-  return patch.split("\n").reduce(
-    (stats, line) => {
-      if (line.startsWith("diff --git ")) {
-        insideHunk = false;
-        return stats;
-      }
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
 
-      if (line.startsWith("@@ ")) {
-        insideHunk = true;
-        return stats;
-      }
+    if (line.startsWith("diff --git ")) {
+      continue;
+    }
 
-      if (!insideHunk && isPatchFileHeader(line)) {
-        return stats;
-      }
+    if (isPatchFileHeaderPair(lines, index)) {
+      index += 1;
+      continue;
+    }
 
-      if (line.startsWith("+")) {
-        stats.additions += 1;
-      }
+    if (line.startsWith("@@ ")) {
+      continue;
+    }
 
-      if (line.startsWith("-")) {
-        stats.deletions += 1;
-      }
+    if (line.startsWith("+")) {
+      additions += 1;
+    }
 
-      return stats;
-    },
-    { additions: 0, deletions: 0 }
+    if (line.startsWith("-")) {
+      deletions += 1;
+    }
+  }
+
+  return { additions, deletions };
+}
+
+function isPatchFileHeaderPair(lines: string[], index: number): boolean {
+  const afterNewHeader = lines[index + 2];
+
+  return (
+    isOldPatchFileHeader(lines[index]) &&
+    isNewPatchFileHeader(lines[index + 1]) &&
+    (afterNewHeader === undefined || afterNewHeader.startsWith("@@ "))
   );
 }
 
-function isPatchFileHeader(line: string): boolean {
-  return /^(?:---|\+\+\+)(?:\s|$)/u.test(line);
+function isOldPatchFileHeader(line: string | undefined): boolean {
+  return line === "---" || line?.startsWith("--- ") === true || line?.startsWith("---\t") === true;
+}
+
+function isNewPatchFileHeader(line: string | undefined): boolean {
+  return line === "+++" || line?.startsWith("+++ ") === true || line?.startsWith("+++\t") === true;
 }
 
 function countPatchFiles(patch: string): number {
@@ -96,7 +110,25 @@ function countPatchFiles(patch: string): number {
     return matches.length;
   }
 
+  const headerPairs = countPatchFileHeaderPairs(patch.split("\n"));
+  if (headerPairs > 0) {
+    return headerPairs;
+  }
+
   return patch.trim().length > 0 ? 1 : 0;
+}
+
+function countPatchFileHeaderPairs(lines: string[]): number {
+  let files = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (isPatchFileHeaderPair(lines, index)) {
+      files += 1;
+      index += 1;
+    }
+  }
+
+  return files;
 }
 
 function countChangedLines(
@@ -105,34 +137,12 @@ function countChangedLines(
 ): Pick<DiffStats, "additions" | "deletions"> {
   const oldLines = splitComparableLines(oldContents);
   const newLines = splitComparableLines(newContents);
-  const maxLength = Math.max(oldLines.length, newLines.length);
-  let additions = 0;
-  let deletions = 0;
+  const commonLines = countCommonLines(oldLines, newLines);
 
-  for (let index = 0; index < maxLength; index += 1) {
-    const oldLine = oldLines[index];
-    const newLine = newLines[index];
-
-    if (oldLine === newLine) {
-      continue;
-    }
-
-    if (oldLine !== undefined && newLine !== undefined) {
-      additions += 1;
-      deletions += 1;
-      continue;
-    }
-
-    if (newLine !== undefined) {
-      additions += 1;
-    }
-
-    if (oldLine !== undefined) {
-      deletions += 1;
-    }
-  }
-
-  return { additions, deletions };
+  return {
+    additions: newLines.length - commonLines,
+    deletions: oldLines.length - commonLines
+  };
 }
 
 function splitComparableLines(contents: string): string[] {
@@ -141,4 +151,28 @@ function splitComparableLines(contents: string): string[] {
   }
 
   return contents.split("\n");
+}
+
+function countCommonLines(oldLines: string[], newLines: string[]): number {
+  if (oldLines.length === 0 || newLines.length === 0) {
+    return 0;
+  }
+
+  let previousRow = new Array<number>(newLines.length + 1).fill(0);
+
+  for (const oldLine of oldLines) {
+    const currentRow = new Array<number>(newLines.length + 1).fill(0);
+
+    for (let index = 1; index <= newLines.length; index += 1) {
+      if (oldLine === newLines[index - 1]) {
+        currentRow[index] = previousRow[index - 1] + 1;
+      } else {
+        currentRow[index] = Math.max(previousRow[index], currentRow[index - 1]);
+      }
+    }
+
+    previousRow = currentRow;
+  }
+
+  return previousRow[newLines.length];
 }
