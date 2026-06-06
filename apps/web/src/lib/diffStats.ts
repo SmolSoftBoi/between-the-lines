@@ -176,13 +176,38 @@ function countChangedLines(
 ): Pick<DiffStats, "additions" | "deletions"> {
   const oldLines = splitComparableLines(oldContents);
   const newLines = splitComparableLines(newContents);
-  const commonLines = countCommonLines(oldLines, newLines);
+  const unchangedEdges = countUnchangedEdgeLines(oldLines, newLines);
+  const oldChangedCount = oldLines.length - unchangedEdges.prefix - unchangedEdges.suffix;
+  const newChangedCount = newLines.length - unchangedEdges.prefix - unchangedEdges.suffix;
+
+  if (oldChangedCount === 0 || newChangedCount === 0) {
+    return {
+      additions: newChangedCount,
+      deletions: oldChangedCount
+    };
+  }
+
+  if (
+    oldChangedCount <= MAX_EXACT_LINE_COMPARISONS / newChangedCount
+  ) {
+    const commonLines = countCommonLines(
+      oldLines.slice(unchangedEdges.prefix, oldLines.length - unchangedEdges.suffix),
+      newLines.slice(unchangedEdges.prefix, newLines.length - unchangedEdges.suffix)
+    );
+
+    return {
+      additions: newChangedCount - commonLines,
+      deletions: oldChangedCount - commonLines
+    };
+  }
 
   return {
-    additions: newLines.length - commonLines,
-    deletions: oldLines.length - commonLines
+    additions: newChangedCount,
+    deletions: oldChangedCount
   };
 }
+
+const MAX_EXACT_LINE_COMPARISONS = 250_000;
 
 function splitComparableLines(contents: string): string[] {
   if (contents === "") {
@@ -190,6 +215,32 @@ function splitComparableLines(contents: string): string[] {
   }
 
   return contents.split("\n");
+}
+
+function countUnchangedEdgeLines(
+  oldLines: string[],
+  newLines: string[]
+): { prefix: number; suffix: number } {
+  const shortestLineCount = Math.min(oldLines.length, newLines.length);
+  let prefix = 0;
+
+  while (prefix < shortestLineCount && oldLines[prefix] === newLines[prefix]) {
+    prefix += 1;
+  }
+
+  let suffix = 0;
+  const oldSuffixLimit = oldLines.length - prefix;
+  const newSuffixLimit = newLines.length - prefix;
+
+  while (
+    suffix < oldSuffixLimit &&
+    suffix < newSuffixLimit &&
+    oldLines[oldLines.length - suffix - 1] === newLines[newLines.length - suffix - 1]
+  ) {
+    suffix += 1;
+  }
+
+  return { prefix, suffix };
 }
 
 function countCommonLines(oldLines: string[], newLines: string[]): number {

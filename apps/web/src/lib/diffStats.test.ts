@@ -146,6 +146,30 @@ describe("getDocumentStats", () => {
     });
   });
 
+  it("keeps large file-pair stats bounded when unchanged text surrounds an insertion", () => {
+    const sharedLines = Array.from({ length: 1_000 }, (_, index) => `line ${index}`);
+    const document = createInitialDocument();
+    document.source = {
+      kind: "file-pair",
+      oldFile: {
+        name: "large.ts",
+        contents: sharedLines.join("\n"),
+        cacheKey: "old-large"
+      },
+      newFile: {
+        name: "large.ts",
+        contents: ["inserted", ...sharedLines].join("\n"),
+        cacheKey: "new-large"
+      }
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 1,
+      deletions: 0,
+      files: 1
+    });
+  });
+
   it("counts empty old file contents as zero comparable lines", () => {
     const document = createInitialDocument();
     document.source = {

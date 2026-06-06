@@ -110,6 +110,18 @@ final class DiffDocumentTests: XCTestCase {
         XCTAssertEqual(document.stats.files, 1)
     }
 
+    func testFilePairStatsStayBoundedWhenLargeUnchangedTextSurroundsInsertion() {
+        let sharedLines = (0..<1_000).map { "line \($0)" }
+        let document = makeFilePairDocument(
+            oldContents: sharedLines.joined(separator: "\n"),
+            newContents: (["inserted"] + sharedLines).joined(separator: "\n")
+        )
+
+        XCTAssertEqual(document.stats.additions, 1)
+        XCTAssertEqual(document.stats.deletions, 0)
+        XCTAssertEqual(document.stats.files, 1)
+    }
+
     func testFilePairStatsTreatEmptyNewFileAsZeroLines() {
         let document = makeFilePairDocument(oldContents: "removed", newContents: "")
 

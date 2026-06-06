@@ -199,11 +199,58 @@ private func splitComparableLines(_ contents: String) -> [Substring] {
 }
 
 private func countChangedLines(oldLines: [Substring], newLines: [Substring]) -> (additions: Int, deletions: Int) {
-    let commonLineCount = countCommonLines(oldLines: oldLines, newLines: newLines)
+    let unchangedEdges = countUnchangedEdgeLines(oldLines: oldLines, newLines: newLines)
+    let oldChangedCount = oldLines.count - unchangedEdges.prefix - unchangedEdges.suffix
+    let newChangedCount = newLines.count - unchangedEdges.prefix - unchangedEdges.suffix
+
+    if oldChangedCount == 0 || newChangedCount == 0 {
+        return (
+            additions: newChangedCount,
+            deletions: oldChangedCount
+        )
+    }
+
+    if oldChangedCount <= maxExactLineComparisons / newChangedCount {
+        let oldEndIndex = oldLines.count - unchangedEdges.suffix
+        let newEndIndex = newLines.count - unchangedEdges.suffix
+        let commonLineCount = countCommonLines(
+            oldLines: Array(oldLines[unchangedEdges.prefix..<oldEndIndex]),
+            newLines: Array(newLines[unchangedEdges.prefix..<newEndIndex])
+        )
+
+        return (
+            additions: newChangedCount - commonLineCount,
+            deletions: oldChangedCount - commonLineCount
+        )
+    }
+
     return (
-        additions: newLines.count - commonLineCount,
-        deletions: oldLines.count - commonLineCount
+        additions: newChangedCount,
+        deletions: oldChangedCount
     )
+}
+
+private let maxExactLineComparisons = 250_000
+
+private func countUnchangedEdgeLines(oldLines: [Substring], newLines: [Substring]) -> (prefix: Int, suffix: Int) {
+    let shortestLineCount = min(oldLines.count, newLines.count)
+    var prefix = 0
+
+    while prefix < shortestLineCount, oldLines[prefix] == newLines[prefix] {
+        prefix += 1
+    }
+
+    var suffix = 0
+    let oldSuffixLimit = oldLines.count - prefix
+    let newSuffixLimit = newLines.count - prefix
+
+    while suffix < oldSuffixLimit,
+          suffix < newSuffixLimit,
+          oldLines[oldLines.count - suffix - 1] == newLines[newLines.count - suffix - 1] {
+        suffix += 1
+    }
+
+    return (prefix: prefix, suffix: suffix)
 }
 
 private func countCommonLines(oldLines: [Substring], newLines: [Substring]) -> Int {
