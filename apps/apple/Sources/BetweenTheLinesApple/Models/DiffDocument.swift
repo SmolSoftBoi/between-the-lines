@@ -44,32 +44,54 @@ public struct DiffDocument: Codable, Equatable, Identifiable, Sendable {
             let lines = patch.split(separator: "\n", omittingEmptySubsequences: false)
             var additions = 0
             var deletions = 0
+            var hunkLineCounts: HunkLineCounts?
 
             var index = 0
 
             while index < lines.count {
                 let line = lines[index]
 
-                if line.hasPrefix("diff --git ") {
+                if hunkLineCounts == nil, line.hasPrefix("diff --git ") {
                     index += 1
                     continue
                 }
 
-                if isPatchFileHeaderPair(lines, at: index) {
+                if hunkLineCounts == nil, isPatchFileHeaderPair(lines, at: index) {
                     index += 2
                     continue
                 }
 
-                if line.hasPrefix("@@ ") {
+                if let parsedHunkLineCounts = parseHunkLineCounts(line) {
+                    hunkLineCounts = parsedHunkLineCounts
+                    index += 1
+                    continue
+                }
+
+                if var counts = hunkLineCounts {
+                    if line.hasPrefix("\\") {
+                        index += 1
+                        continue
+                    }
+
+                    if line.hasPrefix("+") {
+                        additions += 1
+                        counts.newLines -= 1
+                    } else if line.hasPrefix("-") {
+                        deletions += 1
+                        counts.oldLines -= 1
+                    } else {
+                        counts.oldLines -= 1
+                        counts.newLines -= 1
+                    }
+
+                    hunkLineCounts = counts.isComplete ? nil : counts
                     index += 1
                     continue
                 }
 
                 if line.hasPrefix("+") {
                     additions += 1
-                }
-
-                if line.hasPrefix("-") {
+                } else if line.hasPrefix("-") {
                     deletions += 1
                 }
 
@@ -208,17 +230,84 @@ private func countCommonLines(oldLines: [Substring], newLines: [Substring]) -> I
     return previousRow[newLines.count]
 }
 
+private struct HunkLineCounts {
+    var oldLines: Int
+    var newLines: Int
+
+    var isComplete: Bool {
+        oldLines <= 0 && newLines <= 0
+    }
+}
+
+private func parseHunkLineCounts(_ line: Substring) -> HunkLineCounts? {
+    let fields = line.split(separator: " ")
+    guard fields.count >= 4, fields[0] == "@@", fields[3].hasPrefix("@@") else {
+        return nil
+    }
+
+    guard
+        let oldLines = parseHunkLineCount(fields[1], prefix: "-"),
+        let newLines = parseHunkLineCount(fields[2], prefix: "+")
+    else {
+        return nil
+    }
+
+    return HunkLineCounts(oldLines: oldLines, newLines: newLines)
+}
+
+private func parseHunkLineCount(_ field: Substring, prefix: Character) -> Int? {
+    guard field.first == prefix else {
+        return nil
+    }
+
+    let lineRange = field.dropFirst()
+    guard let commaIndex = lineRange.firstIndex(of: ",") else {
+        return 1
+    }
+
+    let countStartIndex = lineRange.index(after: commaIndex)
+    return Int(lineRange[countStartIndex...])
+}
+
 private func countPatchFileHeaderPairs(_ lines: [Substring]) -> Int {
     var files = 0
     var index = 0
+    var hunkLineCounts: HunkLineCounts?
 
     while index < lines.count {
-        if isPatchFileHeaderPair(lines, at: index) {
+        let line = lines[index]
+
+        if hunkLineCounts == nil, isPatchFileHeaderPair(lines, at: index) {
             files += 1
             index += 2
-        } else {
-            index += 1
+            continue
         }
+
+        if let parsedHunkLineCounts = parseHunkLineCounts(line) {
+            hunkLineCounts = parsedHunkLineCounts
+            index += 1
+            continue
+        }
+
+        if var counts = hunkLineCounts {
+            if line.hasPrefix("\\") {
+                index += 1
+                continue
+            }
+
+            if line.hasPrefix("+") {
+                counts.newLines -= 1
+            } else if line.hasPrefix("-") {
+                counts.oldLines -= 1
+            } else {
+                counts.oldLines -= 1
+                counts.newLines -= 1
+            }
+
+            hunkLineCounts = counts.isComplete ? nil : counts
+        }
+
+        index += 1
     }
 
     return files

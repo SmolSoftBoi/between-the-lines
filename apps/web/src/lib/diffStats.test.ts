@@ -55,6 +55,26 @@ describe("getDocumentStats", () => {
     });
   });
 
+  it("counts adjacent triple-marker hunk lines at the end of a hunk", () => {
+    const document = createInitialDocument();
+    document.source = {
+      kind: "patch",
+      patch: [
+        "--- a/example.env",
+        "+++ b/example.env",
+        "@@ -1 +1 @@",
+        "--- disabled",
+        "+++ enabled"
+      ].join("\n")
+    };
+
+    expect(getDocumentStats(document)).toMatchObject({
+      additions: 1,
+      deletions: 1,
+      files: 1
+    });
+  });
+
   it("counts standard multi-file unified patches without git separators", () => {
     const document = createInitialDocument();
     document.source = {

@@ -51,6 +51,25 @@ final class DiffDocumentTests: XCTestCase {
         XCTAssertEqual(document.stats.files, 1)
     }
 
+    func testPatchStatsCountAdjacentTripleMarkerLinesAtEndOfHunk() {
+        let document = DiffDocument(
+            title: "Patch",
+            source: .patch(
+                [
+                    "--- a/example.env",
+                    "+++ b/example.env",
+                    "@@ -1 +1 @@",
+                    "--- disabled",
+                    "+++ enabled",
+                ].joined(separator: "\n")
+            )
+        )
+
+        XCTAssertEqual(document.stats.additions, 1)
+        XCTAssertEqual(document.stats.deletions, 1)
+        XCTAssertEqual(document.stats.files, 1)
+    }
+
     func testPatchStatsCountStandardMultiFileUnifiedPatches() {
         let document = DiffDocument(
             title: "Patch",

@@ -31,9 +31,12 @@ export function getDocumentStats(document: DiffDocument): DiffStats {
 
 export function getSourceStats(source: DiffSource): DiffStats {
   if (source.kind === "patch") {
+    const patchStats = analysePatch(source.patch);
+
     return {
-      ...countPatchLines(source.patch),
-      files: countPatchFiles(source.patch),
+      additions: patchStats.additions,
+      deletions: patchStats.deletions,
+      files: patchStats.files,
       sizeBucket: bucketTextSize(source.patch.length)
     };
   }
@@ -53,37 +56,76 @@ export function getSourceStats(source: DiffSource): DiffStats {
   };
 }
 
-function countPatchLines(patch: string): Pick<DiffStats, "additions" | "deletions"> {
+function analysePatch(patch: string): Pick<DiffStats, "additions" | "deletions" | "files"> {
   const lines = patch.split("\n");
   let additions = 0;
   let deletions = 0;
+  let headerPairs = 0;
+  let hunkLineCounts: HunkLineCounts | null = null;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
 
-    if (line.startsWith("diff --git ")) {
+    if (hunkLineCounts === null && line.startsWith("diff --git ")) {
       continue;
     }
 
-    if (isPatchFileHeaderPair(lines, index)) {
+    if (hunkLineCounts === null && isPatchFileHeaderPair(lines, index)) {
+      headerPairs += 1;
       index += 1;
       continue;
     }
 
-    if (line.startsWith("@@ ")) {
+    const parsedHunkLineCounts = parseHunkLineCounts(line);
+    if (parsedHunkLineCounts) {
+      hunkLineCounts = parsedHunkLineCounts;
+      continue;
+    }
+
+    if (hunkLineCounts === null) {
+      if (line.startsWith("+")) {
+        additions += 1;
+      }
+
+      if (line.startsWith("-")) {
+        deletions += 1;
+      }
+
+      continue;
+    }
+
+    if (line.startsWith("\\")) {
       continue;
     }
 
     if (line.startsWith("+")) {
       additions += 1;
+      hunkLineCounts.newLines -= 1;
+    } else if (line.startsWith("-")) {
+      deletions += 1;
+      hunkLineCounts.oldLines -= 1;
+    } else {
+      hunkLineCounts.oldLines -= 1;
+      hunkLineCounts.newLines -= 1;
     }
 
-    if (line.startsWith("-")) {
-      deletions += 1;
+    if (hunkLineCounts.oldLines <= 0 && hunkLineCounts.newLines <= 0) {
+      hunkLineCounts = null;
     }
   }
 
-  return { additions, deletions };
+  const gitFiles = countGitPatchFiles(lines);
+
+  return {
+    additions,
+    deletions,
+    files: gitFiles > 0 ? gitFiles : countFallbackPatchFiles(patch, headerPairs)
+  };
+}
+
+interface HunkLineCounts {
+  oldLines: number;
+  newLines: number;
 }
 
 function isPatchFileHeaderPair(lines: string[], index: number): boolean {
@@ -104,31 +146,28 @@ function isNewPatchFileHeader(line: string | undefined): boolean {
   return line === "+++" || line?.startsWith("+++ ") === true || line?.startsWith("+++\t") === true;
 }
 
-function countPatchFiles(patch: string): number {
-  const matches = patch.match(/^diff --git /gm);
-  if (matches && matches.length > 0) {
-    return matches.length;
+function parseHunkLineCounts(line: string): HunkLineCounts | null {
+  const match = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/u.exec(line);
+  if (!match) {
+    return null;
   }
 
-  const headerPairs = countPatchFileHeaderPairs(patch.split("\n"));
+  return {
+    oldLines: match[1] === undefined ? 1 : Number.parseInt(match[1], 10),
+    newLines: match[2] === undefined ? 1 : Number.parseInt(match[2], 10)
+  };
+}
+
+function countGitPatchFiles(lines: string[]): number {
+  return lines.filter((line) => line.startsWith("diff --git ")).length;
+}
+
+function countFallbackPatchFiles(patch: string, headerPairs: number): number {
   if (headerPairs > 0) {
     return headerPairs;
   }
 
   return patch.trim().length > 0 ? 1 : 0;
-}
-
-function countPatchFileHeaderPairs(lines: string[]): number {
-  let files = 0;
-
-  for (let index = 0; index < lines.length; index += 1) {
-    if (isPatchFileHeaderPair(lines, index)) {
-      files += 1;
-      index += 1;
-    }
-  }
-
-  return files;
 }
 
 function countChangedLines(
