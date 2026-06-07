@@ -490,6 +490,77 @@ public enum AnnotationStatus: String, Codable, Sendable {
     case resolved
 }
 
+extension DiffDocument {
+    var patchExportText: String {
+        switch source {
+        case .patch(let patch):
+            patch
+        case .filePair(let oldFile, let newFile):
+            createFullFilePairPatch(oldFile: oldFile, newFile: newFile)
+        }
+    }
+
+    var patchExportFilename: String {
+        "\(slugifyFilename(title)).patch"
+    }
+}
+
+private func createFullFilePairPatch(oldFile: DiffFileVersion, newFile: DiffFileVersion) -> String {
+    let oldLines = patchLines(oldFile.contents)
+    let newLines = patchLines(newFile.contents)
+
+    return (
+        [
+            "--- a/\(sanitizePatchFileName(oldFile.name))",
+            "+++ b/\(sanitizePatchFileName(newFile.name))",
+            "@@ -\(hunkStart(oldLines.count)),\(oldLines.count) +\(hunkStart(newLines.count)),\(newLines.count) @@",
+        ] +
+        oldLines.map { "-\($0)" } +
+        newLines.map { "+\($0)" }
+    ).joined(separator: "\n")
+}
+
+private func patchLines(_ contents: String) -> [Substring] {
+    guard !contents.isEmpty else {
+        return []
+    }
+
+    let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
+    if lines.last == "" {
+        return Array(lines.dropLast())
+    }
+
+    return lines
+}
+
+private func hunkStart(_ lineCount: Int) -> Int {
+    lineCount == 0 ? 0 : 1
+}
+
+private func sanitizePatchFileName(_ name: String) -> String {
+    name
+        .replacingOccurrences(of: "\r", with: "_")
+        .replacingOccurrences(of: "\n", with: "_")
+}
+
+private func slugifyFilename(_ title: String) -> String {
+    let slug = title
+        .lowercased()
+        .map { character -> Character in
+            character.isLetter || character.isNumber ? character : "-"
+        }
+        .reduce(into: "") { result, character in
+            if character == "-", result.last == "-" {
+                return
+            }
+
+            result.append(character)
+        }
+        .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+
+    return slug.isEmpty ? "between-the-lines-diff" : slug
+}
+
 public struct DiffStats: Codable, Equatable, Sendable {
     public let additions: Int
     public let deletions: Int

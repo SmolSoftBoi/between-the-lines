@@ -1,7 +1,15 @@
+import Foundation
 import SwiftUI
+#if os(macOS)
+import UniformTypeIdentifiers
+#endif
 
 public struct BetweenTheLinesShellView: View {
     @State private var document: DiffDocument
+    #if os(macOS)
+    @State private var exportFile = ExportedDiffFile(text: "")
+    @State private var isShowingExporter = false
+    #endif
     private let telemetry: TelemetryClient
 
     public init(
@@ -16,18 +24,17 @@ public struct BetweenTheLinesShellView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            DiffWebView(document: document, telemetry: telemetry)
+            DiffWebView(
+                document: document,
+                telemetry: telemetry,
+                onSettingsChange: applyRendererSettings
+            )
                 .navigationTitle(document.title)
                 #if os(macOS)
                 .toolbar {
                     ToolbarItemGroup {
                         Button("Export") {
-                            telemetry.track(
-                                TelemetryEvent(
-                                    name: .exportRequested,
-                                    properties: document.stats.telemetryProperties
-                                )
-                            )
+                            exportCurrentDocument()
                         }
 
                         Toggle("Line Numbers", isOn: lineNumbers)
@@ -43,6 +50,14 @@ public struct BetweenTheLinesShellView: View {
                 )
             )
         }
+        #if os(macOS)
+        .fileExporter(
+            isPresented: $isShowingExporter,
+            document: exportFile,
+            contentType: .plainText,
+            defaultFilename: document.patchExportFilename
+        ) { _ in }
+        #endif
     }
 
     private var sidebar: some View {
@@ -104,4 +119,43 @@ public struct BetweenTheLinesShellView: View {
             telemetry.track(TelemetryEvent(name: .settingsChanged, properties: ["setting": "line_numbers"]))
         }
     }
+
+    private func applyRendererSettings(_ settings: ViewerSettings) {
+        document.settings = settings
+        document.updatedAt = Date()
+    }
+
+    #if os(macOS)
+    private func exportCurrentDocument() {
+        exportFile = ExportedDiffFile(text: document.patchExportText)
+        isShowingExporter = true
+        telemetry.track(
+            TelemetryEvent(
+                name: .exportRequested,
+                properties: document.stats.telemetryProperties
+            )
+        )
+    }
+    #endif
 }
+
+#if os(macOS)
+private struct ExportedDiffFile: FileDocument {
+    static var readableContentTypes: [UTType] { [.plainText] }
+    static var writableContentTypes: [UTType] { [.plainText] }
+
+    private let text: String
+
+    init(text: String) {
+        self.text = text
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        text = ""
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: Data(text.utf8))
+    }
+}
+#endif

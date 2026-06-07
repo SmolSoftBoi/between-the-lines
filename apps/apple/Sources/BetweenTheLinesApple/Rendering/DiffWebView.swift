@@ -5,19 +5,27 @@ public struct DiffWebView: View {
     private let document: DiffDocument
     private let telemetry: TelemetryClient
     private let renderer: DiffHTMLRenderer
+    private let onSettingsChange: (ViewerSettings) -> Void
 
     public init(
         document: DiffDocument,
         telemetry: TelemetryClient = NoOpTelemetryClient(),
-        renderer: DiffHTMLRenderer = DiffHTMLRenderer()
+        renderer: DiffHTMLRenderer = DiffHTMLRenderer(),
+        onSettingsChange: @escaping (ViewerSettings) -> Void = { _ in }
     ) {
         self.document = document
         self.telemetry = telemetry
         self.renderer = renderer
+        self.onSettingsChange = onSettingsChange
     }
 
     public var body: some View {
-        PlatformWebView(document: document, telemetry: telemetry, fallbackHTML: renderer.render(document))
+        PlatformWebView(
+            document: document,
+            telemetry: telemetry,
+            fallbackHTML: renderer.render(document),
+            onSettingsChange: onSettingsChange
+        )
     }
 }
 
@@ -26,9 +34,10 @@ private struct PlatformWebView: UIViewRepresentable {
     let document: DiffDocument
     let telemetry: TelemetryClient
     let fallbackHTML: String
+    let onSettingsChange: (ViewerSettings) -> Void
 
     func makeCoordinator() -> WebViewCoordinator {
-        WebViewCoordinator(telemetry: telemetry)
+        WebViewCoordinator(telemetry: telemetry, onSettingsChange: onSettingsChange)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -47,9 +56,10 @@ private struct PlatformWebView: NSViewRepresentable {
     let document: DiffDocument
     let telemetry: TelemetryClient
     let fallbackHTML: String
+    let onSettingsChange: (ViewerSettings) -> Void
 
     func makeCoordinator() -> WebViewCoordinator {
-        WebViewCoordinator(telemetry: telemetry)
+        WebViewCoordinator(telemetry: telemetry, onSettingsChange: onSettingsChange)
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -76,18 +86,23 @@ private func makeWebView(coordinator: WebViewCoordinator) -> WKWebView {
 
 private final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     private let telemetry: TelemetryClient
+    private let onSettingsChange: (ViewerSettings) -> Void
     private let encoder: JSONEncoder
+    private var currentSettings = ViewerSettings()
     private var currentRendererURL: URL?
     private var hasLoadedBundledRenderer = false
     private var pendingDocumentJSON: String?
 
-    init(telemetry: TelemetryClient) {
+    init(telemetry: TelemetryClient, onSettingsChange: @escaping (ViewerSettings) -> Void) {
         self.telemetry = telemetry
+        self.onSettingsChange = onSettingsChange
         encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
     }
 
     func render(_ document: DiffDocument, in webView: WKWebView, fallbackHTML: String) {
+        currentSettings = document.settings
+
         guard let documentJSON = encode(document) else {
             telemetry.track(TelemetryEvent(name: .renderFailed, properties: ["reason": "encode_failed"]))
             webView.loadHTMLString(fallbackHTML, baseURL: nil)
@@ -129,6 +144,11 @@ private final class WebViewCoordinator: NSObject, WKNavigationDelegate, WKScript
 
         let bridgeEvent = classifyDiffBridgeMessageBody(message.body)
         telemetry.track(TelemetryEvent(name: bridgeEvent.name, properties: bridgeEvent.properties))
+
+        if let updatedSettings = rendererSettings(from: message.body, currentSettings: currentSettings) {
+            currentSettings = updatedSettings
+            onSettingsChange(updatedSettings)
+        }
     }
 
     private func encode(_ document: DiffDocument) -> String? {
@@ -232,6 +252,71 @@ private func settingsProperties(from body: [String: Any]) -> [String: String] {
     var properties: [String: String] = [:]
     properties["setting"] = body["setting"] as? String
     return properties
+}
+
+func rendererSettings(from messageBody: Any, currentSettings: ViewerSettings) -> ViewerSettings? {
+    guard
+        let body = messageBody as? [String: Any],
+        body["type"] as? String == "updateSettings",
+        let settings = body["settings"] as? [String: Any]
+    else {
+        return nil
+    }
+
+    var nextSettings = currentSettings
+    var hasUpdate = false
+
+    if
+        let rawDiffStyle = settings["diffStyle"] as? String,
+        let diffStyle = DiffStyle(rawValue: rawDiffStyle)
+    {
+        nextSettings.diffStyle = diffStyle
+        hasUpdate = true
+    }
+
+    if
+        let rawOverflow = settings["overflow"] as? String,
+        let overflow = DiffOverflow(rawValue: rawOverflow)
+    {
+        nextSettings.overflow = overflow
+        hasUpdate = true
+    }
+
+    if
+        let rawThemeType = settings["themeType"] as? String,
+        let themeType = ThemeType(rawValue: rawThemeType)
+    {
+        nextSettings.themeType = themeType
+        hasUpdate = true
+    }
+
+    if
+        let rawLineDiffType = settings["lineDiffType"] as? String,
+        let lineDiffType = LineDiffType(rawValue: rawLineDiffType)
+    {
+        nextSettings.lineDiffType = lineDiffType
+        hasUpdate = true
+    }
+
+    if let lineNumbers = settings["lineNumbers"] as? Bool {
+        nextSettings.lineNumbers = lineNumbers
+        hasUpdate = true
+    }
+
+    if
+        let collapsedContextThreshold = settings["collapsedContextThreshold"] as? Int,
+        collapsedContextThreshold >= 0
+    {
+        nextSettings.collapsedContextThreshold = collapsedContextThreshold
+        hasUpdate = true
+    }
+
+    if let telemetryOptIn = settings["telemetryOptIn"] as? Bool {
+        nextSettings.telemetryOptIn = telemetryOptIn
+        hasUpdate = true
+    }
+
+    return hasUpdate ? nextSettings : nil
 }
 
 func bundledRendererURL(

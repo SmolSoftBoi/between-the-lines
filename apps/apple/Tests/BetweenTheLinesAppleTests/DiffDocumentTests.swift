@@ -138,6 +138,36 @@ final class DiffDocumentTests: XCTestCase {
         XCTAssertEqual(document.stats.files, 1)
     }
 
+    func testPatchExportUsesExistingPatchSource() {
+        let patch = "@@ -1 +1 @@\n-old\n+new"
+        let document = DiffDocument(title: "Patch", source: .patch(patch))
+
+        XCTAssertEqual(document.patchExportText, patch)
+        XCTAssertEqual(document.patchExportFilename, "patch.patch")
+    }
+
+    func testFilePairPatchExportUsesFullReplacementPatch() {
+        let document = DiffDocument(
+            title: "Review Export",
+            source: .filePair(
+                oldFile: DiffFileVersion(name: "old\nfile.txt", contents: "old\n"),
+                newFile: DiffFileVersion(name: "new\rfile.txt", contents: "new")
+            )
+        )
+
+        XCTAssertEqual(
+            document.patchExportText,
+            [
+                "--- a/old_file.txt",
+                "+++ b/new_file.txt",
+                "@@ -1,1 +1,1 @@",
+                "-old",
+                "+new",
+            ].joined(separator: "\n")
+        )
+        XCTAssertEqual(document.patchExportFilename, "review-export.patch")
+    }
+
     func testRendererEscapesUserVisibleText() {
         let document = DiffDocument(
             title: "<Title>",

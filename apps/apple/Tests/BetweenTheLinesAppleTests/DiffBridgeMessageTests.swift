@@ -140,6 +140,50 @@ final class DiffBridgeMessageTests: XCTestCase {
         )
     }
 
+    func testRendererSettingsParsesSafeUpdateSettingsMessage() {
+        let settings = rendererSettings(
+            from: [
+                "type": "updateSettings",
+                "settings": [
+                    "diffStyle": "unified",
+                    "overflow": "wrap",
+                    "themeType": "dark",
+                    "lineDiffType": "char",
+                    "lineNumbers": false,
+                    "collapsedContextThreshold": 4,
+                    "telemetryOptIn": true,
+                    "path": "/tmp/private.patch",
+                ],
+            ],
+            currentSettings: ViewerSettings()
+        )
+
+        XCTAssertEqual(settings?.diffStyle, .unified)
+        XCTAssertEqual(settings?.overflow, .wrap)
+        XCTAssertEqual(settings?.themeType, .dark)
+        XCTAssertEqual(settings?.lineDiffType, .character)
+        XCTAssertEqual(settings?.lineNumbers, false)
+        XCTAssertEqual(settings?.collapsedContextThreshold, 4)
+        XCTAssertEqual(settings?.telemetryOptIn, true)
+    }
+
+    func testRendererSettingsRejectsMessagesWithoutValidSettings() {
+        let currentSettings = ViewerSettings()
+        let settings = rendererSettings(
+            from: [
+                "type": "updateSettings",
+                "settings": [
+                    "diffStyle": "side-by-side",
+                    "collapsedContextThreshold": -1,
+                    "lineNumbers": "false",
+                ],
+            ],
+            currentSettings: currentSettings
+        )
+
+        XCTAssertNil(settings)
+    }
+
     func testRenderDiffPostMessageScriptEscapesJavaScriptLineSeparators() {
         let script = makeRenderDiffPostMessageScript(
             documentJSON: "{\"title\":\"Line separator\u{2028}Paragraph separator\u{2029}\"}"
