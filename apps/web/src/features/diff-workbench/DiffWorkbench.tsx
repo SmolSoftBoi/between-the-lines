@@ -94,6 +94,9 @@ export function DiffWorkbench() {
   }, []);
 
   const updateSettings = useCallback((settings: Partial<ViewerSettings>) => {
+    const nextTelemetryOptIn =
+      settings.telemetryOptIn ?? latestDocumentRef.current.settings.telemetryOptIn;
+
     setDocument((currentDocument) => ({
       ...currentDocument,
       settings: {
@@ -102,6 +105,10 @@ export function DiffWorkbench() {
       },
       updatedAt: new Date().toISOString()
     }));
+    if (!nextTelemetryOptIn) {
+      return;
+    }
+
     const telemetrySetting = getTelemetrySettingName(settings);
     telemetry.track("settings_changed", telemetrySetting ? { setting: telemetrySetting } : {});
   }, [telemetry]);

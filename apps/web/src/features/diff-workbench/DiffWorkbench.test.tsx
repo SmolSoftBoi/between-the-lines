@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NativeBridgeHandlers } from "../../lib/nativeBridge";
+import type {
+  TelemetryClientOptions,
+  TelemetryEventName,
+  TelemetryProperty
+} from "../../lib/telemetry";
 import { DiffWorkbench } from "./DiffWorkbench";
 import { defaultSettings } from "./fixtures";
 import type { DiffDocument, NativeRendererMessage, ViewerSettings } from "./types";
@@ -18,9 +23,37 @@ const storageMock = vi.hoisted(() => ({
   saveSettings: vi.fn<(_settings: ViewerSettings) => void>()
 }));
 
+type TrackTelemetry = (
+  name: TelemetryEventName,
+  properties?: Record<string, TelemetryProperty>
+) => void;
+
+const telemetryMock = vi.hoisted(() => ({
+  clients: [] as Array<{
+    options: TelemetryClientOptions;
+    track: ReturnType<typeof vi.fn<TrackTelemetry>>;
+  }>,
+  createTelemetryClient: vi.fn((options: TelemetryClientOptions) => {
+    const track = vi.fn<TrackTelemetry>();
+    telemetryMock.clients.push({ options, track });
+    return { track };
+  })
+}));
+
 vi.mock("../../lib/nativeBridge", () => nativeBridgeMock);
 
 vi.mock("../../lib/storage", () => storageMock);
+
+vi.mock("../../lib/telemetry", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/telemetry")>(
+    "../../lib/telemetry"
+  );
+
+  return {
+    ...actual,
+    createTelemetryClient: telemetryMock.createTelemetryClient
+  };
+});
 
 vi.mock("./DiffViewer", () => ({
   DiffViewer: () => null
@@ -36,9 +69,11 @@ vi.mock("./InspectorPanel", () => ({
 
 vi.mock("./HeaderToolbar", () => ({
   HeaderToolbar: ({
+    onTelemetryChange,
     onSaveSnapshot,
     onTitleChange
   }: {
+    onTelemetryChange(telemetryOptIn: boolean): void;
     onSaveSnapshot(): void;
     onTitleChange(title: string): void;
   }) => (
@@ -48,6 +83,9 @@ vi.mock("./HeaderToolbar", () => ({
       </button>
       <button type="button" onClick={() => onTitleChange("Updated title")}>
         Update title
+      </button>
+      <button type="button" onClick={() => onTelemetryChange(false)}>
+        Disable telemetry
       </button>
     </div>
   )
@@ -61,8 +99,11 @@ beforeEach(() => {
   storageMock.documents = [];
   storageMock.loadDocuments.mockClear();
   storageMock.loadSettings.mockClear();
+  storageMock.loadSettings.mockImplementation((settings: ViewerSettings) => settings);
   storageMock.saveDocuments.mockClear();
   storageMock.saveSettings.mockClear();
+  telemetryMock.clients = [];
+  telemetryMock.createTelemetryClient.mockClear();
   nativeBridgeMock.installNativeBridge.mockClear();
   nativeBridgeMock.postNativeMessage.mockClear();
   vi.spyOn(crypto, "randomUUID")
@@ -75,6 +116,30 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe("DiffWorkbench telemetry", () => {
+  it("does not send a settings event when telemetry is switched off", async () => {
+    storageMock.loadSettings.mockImplementation((settings: ViewerSettings) => ({
+      ...settings,
+      telemetryOptIn: true
+    }));
+
+    render(<DiffWorkbench />);
+
+    await waitFor(() => expect(nativeBridgeMock.postNativeMessage).toHaveBeenCalledOnce());
+    const enabledTelemetryClient = telemetryMock.clients[0];
+    enabledTelemetryClient.track.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Disable telemetry" }));
+
+    await waitFor(() =>
+      expect(storageMock.saveSettings).toHaveBeenLastCalledWith(
+        expect.objectContaining({ telemetryOptIn: false })
+      )
+    );
+    expect(enabledTelemetryClient.track).not.toHaveBeenCalled();
+  });
 });
 
 describe("DiffWorkbench native bridge lifecycle", () => {
