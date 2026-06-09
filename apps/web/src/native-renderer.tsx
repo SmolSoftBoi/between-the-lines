@@ -1,33 +1,14 @@
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { DiffViewer } from "./features/diff-workbench/DiffViewer";
-import { createInitialDocument, defaultSettings } from "./features/diff-workbench/fixtures";
-import type { DiffDocument, DiffFileVersion, DiffSource, ViewerSettings } from "./features/diff-workbench/types";
+import { createInitialDocument } from "./features/diff-workbench/fixtures";
+import type { DiffDocument, ViewerSettings } from "./features/diff-workbench/types";
 import { getDocumentStats } from "./lib/diffStats";
 import { installNativeBridge, postNativeMessage } from "./lib/nativeBridge";
 import { getTelemetrySettingName } from "./lib/telemetry";
+import { normaliseDocument, normaliseSettings } from "./native-renderer-model";
 import "./styles.css";
 import "./native-renderer.css";
-
-type IncomingDiffFileVersion = Omit<DiffFileVersion, "cacheKey"> & {
-  cacheKey?: string;
-};
-
-type IncomingDiffSource =
-  | {
-      kind: "file-pair";
-      oldFile: IncomingDiffFileVersion;
-      newFile: IncomingDiffFileVersion;
-    }
-  | {
-      kind: "patch";
-      patch: string;
-    };
-
-type IncomingDiffDocument = Omit<DiffDocument, "source" | "settings"> & {
-  source: IncomingDiffSource;
-  settings?: Partial<ViewerSettings>;
-};
 
 export function NativeRendererApp() {
   const [document, setDocument] = useState<DiffDocument>(() => createInitialDocument());
@@ -52,7 +33,7 @@ export function NativeRendererApp() {
 
   const updateSettings = useCallback((settings: Partial<ViewerSettings>) => {
     setDocument((currentDocument) => {
-      const nextSettings = { ...currentDocument.settings, ...settings };
+      const nextSettings = normaliseSettings(settings, currentDocument.settings);
       const telemetrySetting = getTelemetrySettingName(settings);
       postNativeMessage({
         type: "updateSettings",
@@ -85,48 +66,6 @@ export function NativeRendererApp() {
       <DiffViewer document={document} settings={document.settings} onSettingsChange={updateSettings} />
     </div>
   );
-}
-
-function normaliseDocument(document: DiffDocument): DiffDocument {
-  const incomingDocument = document as IncomingDiffDocument;
-  const fallbackDocument = createInitialDocument();
-
-  return {
-    ...fallbackDocument,
-    ...incomingDocument,
-    source: normaliseSource(incomingDocument.source, fallbackDocument.source),
-    settings: {
-      ...defaultSettings,
-      ...(incomingDocument.settings ?? {})
-    },
-    annotations: Array.isArray(incomingDocument.annotations) ? incomingDocument.annotations : []
-  };
-}
-
-function normaliseSource(source: IncomingDiffSource, fallbackSource: DiffSource): DiffSource {
-  if (source.kind === "patch") {
-    return {
-      kind: "patch",
-      patch: source.patch
-    };
-  }
-
-  if (source.kind === "file-pair") {
-    return {
-      kind: "file-pair",
-      oldFile: normaliseFile(source.oldFile, "old"),
-      newFile: normaliseFile(source.newFile, "new")
-    };
-  }
-
-  return fallbackSource;
-}
-
-function normaliseFile(file: IncomingDiffFileVersion, prefix: string): DiffFileVersion {
-  return {
-    ...file,
-    cacheKey: file.cacheKey ?? `${prefix}-${file.name}-${file.contents.length}`
-  };
 }
 
 if (import.meta.env.MODE !== "test") {

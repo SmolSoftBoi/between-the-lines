@@ -1,9 +1,10 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultSettings } from "./features/diff-workbench/fixtures";
-import type { DiffDocument, NativeRendererMessage } from "./features/diff-workbench/types";
+import type { DiffDocument, NativeRendererMessage, ViewerSettings } from "./features/diff-workbench/types";
 import type { NativeBridgeHandlers } from "./lib/nativeBridge";
 import { NativeRendererApp } from "./native-renderer";
+import { normaliseDocument } from "./native-renderer-model";
 
 const nativeBridgeMock = vi.hoisted(() => ({
   handlers: undefined as NativeBridgeHandlers | undefined,
@@ -114,6 +115,45 @@ describe("NativeRendererApp", () => {
         })
       })
     );
+  });
+
+  it("derives a concrete dark theme from native themeType settings", () => {
+    const settings: Partial<ViewerSettings> = { ...defaultSettings, themeType: "dark" };
+    delete settings.theme;
+
+    const document = normaliseDocument({
+      ...createDocument("dark-theme"),
+      settings
+    } as DiffDocument);
+
+    expect(document.settings.themeType).toBe("dark");
+    expect(document.settings.theme).toBe("pierre-dark");
+  });
+
+  it("derives the system dark theme from native themeType settings", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: true,
+        media: "(prefers-color-scheme: dark)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    );
+    const settings: Partial<ViewerSettings> = { ...defaultSettings, themeType: "system" };
+    delete settings.theme;
+
+    const document = normaliseDocument({
+      ...createDocument("system-theme"),
+      settings
+    } as DiffDocument);
+
+    expect(document.settings.themeType).toBe("system");
+    expect(document.settings.theme).toBe("pierre-dark");
   });
 });
 
