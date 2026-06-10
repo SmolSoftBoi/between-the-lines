@@ -400,8 +400,19 @@ public struct DiffFileVersion: Codable, Equatable, Sendable {
         self.name = name
         self.contents = contents
         self.lang = lang
-        self.cacheKey = cacheKey ?? "\(name)-\(contents.count)"
+        self.cacheKey = cacheKey ?? "\(name)-\(contents.count)-\(stableContentDigest(contents))"
     }
+}
+
+private func stableContentDigest(_ contents: String) -> String {
+    var hash: UInt64 = 0xcbf29ce484222325
+
+    for byte in contents.utf8 {
+        hash ^= UInt64(byte)
+        hash = hash &* 0x100000001b3
+    }
+
+    return String(hash, radix: 16)
 }
 
 public struct ViewerSettings: Codable, Equatable, Sendable {

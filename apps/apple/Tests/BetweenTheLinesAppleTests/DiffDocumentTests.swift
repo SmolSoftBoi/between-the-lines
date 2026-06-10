@@ -168,6 +168,15 @@ final class DiffDocumentTests: XCTestCase {
         XCTAssertEqual(document.patchExportFilename, "review-export.patch")
     }
 
+    func testDefaultCacheKeyIncludesContentIdentity() {
+        let first = DiffFileVersion(name: "same.txt", contents: "abc")
+        let second = DiffFileVersion(name: "same.txt", contents: "xyz")
+
+        XCTAssertNotEqual(first.cacheKey, second.cacheKey)
+        XCTAssertTrue(first.cacheKey.hasPrefix("same.txt-3-"))
+        XCTAssertTrue(second.cacheKey.hasPrefix("same.txt-3-"))
+    }
+
     func testRendererEscapesUserVisibleText() {
         let document = DiffDocument(
             title: "<Title>",
