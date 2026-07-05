@@ -7,11 +7,11 @@ describe("createFullFilePairPatch", () => {
       createFullFilePairPatch({
         oldFile: {
           name: "story.txt",
-          contents: "line one\n\nline three"
+          contents: "line one\n\nline three\n"
         },
         newFile: {
           name: "story.txt",
-          contents: "line uno\n\nline tres"
+          contents: "line uno\n\nline tres\n"
         }
       })
     ).toBe(
@@ -56,7 +56,40 @@ describe("createFullFilePairPatch", () => {
           contents: "created"
         }
       })
-    ).toBe(["--- a/before.txt", "+++ b/after.txt", "@@ -0,0 +1,1 @@", "+created"].join("\n"));
+    ).toBe(
+      [
+        "--- a/before.txt",
+        "+++ b/after.txt",
+        "@@ -0,0 +1,1 @@",
+        "+created",
+        "\\ No newline at end of file"
+      ].join("\n")
+    );
+  });
+
+  it("emits no-newline markers for non-empty sides without trailing line feeds", () => {
+    expect(
+      createFullFilePairPatch({
+        oldFile: {
+          name: "before.txt",
+          contents: "a"
+        },
+        newFile: {
+          name: "after.txt",
+          contents: "b"
+        }
+      })
+    ).toBe(
+      [
+        "--- a/before.txt",
+        "+++ b/after.txt",
+        "@@ -1,1 +1,1 @@",
+        "-a",
+        "\\ No newline at end of file",
+        "+b",
+        "\\ No newline at end of file"
+      ].join("\n")
+    );
   });
 
   it("does not count a trailing final newline as an extra blank line", () => {
@@ -81,11 +114,11 @@ describe("createFullFilePairPatch", () => {
       createFullFilePairPatch({
         oldFile: {
           name: "before\rsecret.txt",
-          contents: "old"
+          contents: "old\n"
         },
         newFile: {
           name: "after\nsecret.txt",
-          contents: "new"
+          contents: "new\n"
         }
       })
     ).toBe(

@@ -517,31 +517,48 @@ extension DiffDocument {
 }
 
 private func createFullFilePairPatch(oldFile: DiffFileVersion, newFile: DiffFileVersion) -> String {
-    let oldLines = patchLines(oldFile.contents)
-    let newLines = patchLines(newFile.contents)
+    let oldLineSet = patchLineSet(oldFile.contents)
+    let newLineSet = patchLineSet(newFile.contents)
 
     return (
         [
             "--- a/\(sanitizePatchFileName(oldFile.name))",
             "+++ b/\(sanitizePatchFileName(newFile.name))",
-            "@@ -\(hunkStart(oldLines.count)),\(oldLines.count) +\(hunkStart(newLines.count)),\(newLines.count) @@",
+            "@@ -\(hunkStart(oldLineSet.lines.count)),\(oldLineSet.lines.count) +\(hunkStart(newLineSet.lines.count)),\(newLineSet.lines.count) @@",
         ] +
-        oldLines.map { "-\($0)" } +
-        newLines.map { "+\($0)" }
+        prefixedPatchLines("-", lineSet: oldLineSet) +
+        prefixedPatchLines("+", lineSet: newLineSet)
     ).joined(separator: "\n")
 }
 
-private func patchLines(_ contents: String) -> [Substring] {
+private struct PatchLineSet {
+    let lines: [Substring]
+    let needsNoNewlineMarker: Bool
+}
+
+private func patchLineSet(_ contents: String) -> PatchLineSet {
     guard !contents.isEmpty else {
-        return []
+        return PatchLineSet(lines: [], needsNoNewlineMarker: false)
     }
 
     let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
     if lines.last == "" {
-        return Array(lines.dropLast())
+        return PatchLineSet(lines: Array(lines.dropLast()), needsNoNewlineMarker: false)
     }
 
-    return lines
+    return PatchLineSet(lines: lines, needsNoNewlineMarker: true)
+}
+
+private func prefixedPatchLines(_ prefix: String, lineSet: PatchLineSet) -> [String] {
+    lineSet.lines.enumerated().flatMap { index, line -> [String] in
+        let prefixedLine = "\(prefix)\(line)"
+
+        if lineSet.needsNoNewlineMarker, index == lineSet.lines.count - 1 {
+            return [prefixedLine, "\\ No newline at end of file"]
+        }
+
+        return [prefixedLine]
+    }
 }
 
 private func hunkStart(_ lineCount: Int) -> Int {

@@ -151,7 +151,7 @@ final class DiffDocumentTests: XCTestCase {
             title: "Review Export",
             source: .filePair(
                 oldFile: DiffFileVersion(name: "old\nfile.txt", contents: "old\n"),
-                newFile: DiffFileVersion(name: "new\rfile.txt", contents: "new")
+                newFile: DiffFileVersion(name: "new\rfile.txt", contents: "new\n")
             )
         )
 
@@ -166,6 +166,29 @@ final class DiffDocumentTests: XCTestCase {
             ].joined(separator: "\n")
         )
         XCTAssertEqual(document.patchExportFilename, "review-export.patch")
+    }
+
+    func testFilePairPatchExportPreservesMissingTrailingNewlines() {
+        let document = DiffDocument(
+            title: "Missing final newline",
+            source: .filePair(
+                oldFile: DiffFileVersion(name: "old.txt", contents: "a"),
+                newFile: DiffFileVersion(name: "new.txt", contents: "b")
+            )
+        )
+
+        XCTAssertEqual(
+            document.patchExportText,
+            [
+                "--- a/old.txt",
+                "+++ b/new.txt",
+                "@@ -1,1 +1,1 @@",
+                "-a",
+                "\\ No newline at end of file",
+                "+b",
+                "\\ No newline at end of file",
+            ].joined(separator: "\n")
+        )
     }
 
     func testDefaultCacheKeyIncludesContentIdentity() {
